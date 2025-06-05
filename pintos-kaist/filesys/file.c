@@ -3,18 +3,18 @@
 #include "filesys/inode.h"
 #include "threads/malloc.h"
 
-/* An open file. */
+/* 열린 파일을 나타내는 구조체. */
 struct file
 {
-	struct inode *inode; /* File's inode. */
-	off_t pos;			 /* Current position. */
-	bool deny_write;	 /* Has file_deny_write() been called? */
+	struct inode *inode; /* 파일의 인노드. */
+	off_t pos;			 /* 현재 위치. */
+	bool deny_write;	 /* file_deny_write()가 호출되었는지 여부. */
 	int dup_count;		 /* extra2 */
 };
 
-/* Opens a file for the given INODE, of which it takes ownership,
- * and returns the new file.  Returns a null pointer if an
- * allocation fails or if INODE is null. */
+/* 주어진 INODE를 사용하여 파일을 열고 해당 소유권을 가져온 후
+ * 새 파일을 반환합니다. 메모리 할당이 실패하거나 INODE가 NULL이면
+ * NULL 포인터를 반환합니다. */
 
 void increase_dup_count(struct file *file)
 {
@@ -55,16 +55,16 @@ file_open(struct inode *inode)
 	}
 }
 
-/* Opens and returns a new file for the same inode as FILE.
- * Returns a null pointer if unsuccessful. */
+/* FILE과 같은 inode를 사용하는 새 파일을 열어 반환합니다.
+ * 실패하면 NULL 포인터를 반환합니다. */
 struct file *
 file_reopen(struct file *file)
 {
 	return file_open(inode_reopen(file->inode));
 }
 
-/* Duplicate the file object including attributes and returns a new file for the
- * same inode as FILE. Returns a null pointer if unsuccessful. */
+/* 파일 객체의 속성을 복제하여 FILE과 같은 inode를 가지는 새 파일을 반환합니다.
+ * 실패하면 NULL 포인터를 반환합니다. */
 struct file *
 file_duplicate(struct file *file)
 {
@@ -78,7 +78,7 @@ file_duplicate(struct file *file)
 	return nfile;
 }
 
-/* Closes FILE. */
+/* FILE을 닫습니다. */
 void file_close(struct file *file)
 {
 	if (file != NULL)
@@ -89,7 +89,7 @@ void file_close(struct file *file)
 	}
 }
 
-/* Returns the inode encapsulated by FILE. */
+/* FILE이 감싸고 있는 inode를 반환합니다. */
 struct inode *
 file_get_inode(struct file *file)
 {
@@ -135,8 +135,8 @@ off_t file_write_at(struct file *file, const void *buffer, off_t size,
 	return inode_write_at(file->inode, buffer, size, file_ofs);
 }
 
-/* Prevents write operations on FILE's underlying inode
- * until file_allow_write() is called or FILE is closed. */
+/* file_allow_write()가 호출되거나 FILE이 닫힐 때까지
+ * FILE의 inode에 대한 쓰기 작업을 금지합니다. */
 void file_deny_write(struct file *file)
 {
 	ASSERT(file != NULL);
@@ -147,9 +147,8 @@ void file_deny_write(struct file *file)
 	}
 }
 
-/* Re-enables write operations on FILE's underlying inode.
- * (Writes might still be denied by some other file that has the
- * same inode open.) */
+/* FILE의 inode에 대한 쓰기 작업을 다시 허용합니다.
+ * (같은 inode를 열어 놓은 다른 파일에 의해 여전히 거부될 수 있습니다.) */
 void file_allow_write(struct file *file)
 {
 	ASSERT(file != NULL);
@@ -160,15 +159,14 @@ void file_allow_write(struct file *file)
 	}
 }
 
-/* Returns the size of FILE in bytes. */
+/* FILE의 크기를 바이트 단위로 반환합니다. */
 off_t file_length(struct file *file)
 {
 	ASSERT(file != NULL);
 	return inode_length(file->inode);
 }
 
-/* Sets the current position in FILE to NEW_POS bytes from the
- * start of the file. */
+/* 파일의 처음부터 NEW_POS 바이트 위치로 현재 위치를 설정합니다. */
 void file_seek(struct file *file, off_t new_pos)
 {
 	ASSERT(file != NULL);
@@ -176,8 +174,7 @@ void file_seek(struct file *file, off_t new_pos)
 	file->pos = new_pos;
 }
 
-/* Returns the current position in FILE as a byte offset from the
- * start of the file. */
+/* 파일의 처음으로부터의 바이트 오프셋 형태로 FILE의 현재 위치를 반환합니다. */
 off_t file_tell(struct file *file)
 {
 	ASSERT(file != NULL);
