@@ -1,11 +1,11 @@
-/* page_cache.c: Implementation of Page Cache (Buffer Cache). */
+/* page_cache.c: 페이지 캐시(버퍼 캐시) 구현 파일. */
 
 #include "vm/vm.h"
 static bool page_cache_readahead (struct page *page, void *kva);
 static bool page_cache_writeback (struct page *page);
 static void page_cache_destroy (struct page *page);
 
-/* DO NOT MODIFY this struct */
+/* 이 구조체는 수정하지 마십시오 */
 static const struct page_operations page_cache_op = {
 	.swap_in = page_cache_readahead,
 	.swap_out = page_cache_writeback,
@@ -15,13 +15,13 @@ static const struct page_operations page_cache_op = {
 
 tid_t page_cache_workerd;
 
-/* The initializer of file vm */
+/* 파일 vm을 위한 초기화 함수 */
 void
 pagecache_init (void) {
 	/* TODO: page_cache_kworkerd를 사용하여 페이지 캐시용 워커 데몬을 생성하세요 */
 }
 
-/* Initialize the page cache */
+/* 페이지 캐시를 초기화한다 */
 bool
 page_cache_initializer (struct page *page, enum vm_type type, void *kva) {
 	/* Set up the handler */
