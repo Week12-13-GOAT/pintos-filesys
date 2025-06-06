@@ -155,6 +155,23 @@ fat_boot_create (void) {
 void
 fat_fs_init (void) {
 	/* TODO: Your code goes here. */
+	/*	FAT 파일 시스템은 여러 쓰레드가 동시에 접근할 수 도 있음 
+	 *	→ 따라서 쓰기 작업을 보호하기 위해 락 초기화
+	 */ 
+	lock_init(&fat_fs->write_lock);
+
+	/*	이건 뭐 공식임 외워. 
+	 *	FAT 테이블 항목 개수 = FAT 테이블 총 섹터 수 × 섹터 크기 ÷ 클러스터 항목 크기
+	 */
+	fat_fs->fat_length = fat_fs->bs.fat_sectors * DISK_SECTOR_SIZE / sizeof(cluster_t);
+
+	// 파일 시작 위치는 이전 시작위치 + 이전 섹터를 더하면 됩니다. 
+	fat_fs->data_start = fat_fs->bs.fat_start + fat_fs->bs.fat_sectors;
+
+	/*	클러스터 번호 0번과 1번은 예약되어 있으므로
+	 *	→ 새로운 클러스터 할당 시 2번부터 시작!
+	 */
+	fat_fs->last_clst =2;
 }
 
 /*----------------------------------------------------------------------------*/
