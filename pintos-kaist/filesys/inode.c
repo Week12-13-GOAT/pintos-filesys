@@ -6,7 +6,7 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
-#include "fat.h"
+#include "filesys/fat.h"
 
 /* inode를 식별하는 매직 넘버. */
 #define INODE_MAGIC 0x494e4f44
