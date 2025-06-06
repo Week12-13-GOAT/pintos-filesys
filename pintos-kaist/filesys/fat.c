@@ -5,6 +5,8 @@
 #include "threads/synch.h"
 #include <stdio.h>
 #include <string.h>
+// Project 4
+#include "filesys/fat.h"
 
 /* DISK_SECTOR_SIZE보다 작아야 함 */
 struct fat_boot {
@@ -18,12 +20,12 @@ struct fat_boot {
 
 /* FAT 파일 시스템 정보 */
 struct fat_fs {
-	struct fat_boot bs;
-	unsigned int *fat;
-	unsigned int fat_length;
-	disk_sector_t data_start;
-	cluster_t last_clst;
-	struct lock write_lock;
+    struct fat_boot bs;        // 부트 섹터 정보
+    unsigned int *fat;         // FAT 배열
+    unsigned int fat_length;   // FAT 엔트리 개수
+    disk_sector_t data_start;  // 데이터 시작 섹터
+    cluster_t last_clst;       // 마지막 클러스터 번호
+    struct lock write_lock;    // FAT 수정 시 동기화용 락
 };
 
 static struct fat_fs *fat_fs;
