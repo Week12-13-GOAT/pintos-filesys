@@ -152,7 +152,16 @@ fat_boot_create (void) {
 
 void
 fat_fs_init (void) {
-	/* TODO: Your code goes here. */
+
+	lock_init(&fat_fs->write_lock);
+
+	//FAT 길이 = 섹터의 합 / 클러스터당 차지하는 섹터 개수(1)
+	fat_fs->fat_length = fat_fs->bs.total_sectors / SECTORS_PER_CLUSTER;
+
+	//데이터 블록의 시작점 = FAT 시작 섹터 + FAT가 차지하는 섹터
+	fat_fs->data_start = fat_fs->bs.fat_start + fat_fs->bs.fat_sectors;
+	
+	fat_fs->last_clst = 2;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -165,29 +174,87 @@ fat_fs_init (void) {
 cluster_t
 fat_create_chain (cluster_t clst) {
 	/* TODO: Your code goes here. */
+	ASSERT(clst < fat_fs->fat_length);
+
+	unsigned int *fat = fat_fs->fat;
+	cluster_t new_clst = find_free_cluster();
+	if(new_clst == 0)
+		return 0;
+
+	fat_put(new_clst, EOChain);
+	fat_fs->last_clst = new_clst;
+	if(clst == 0)
+		return new_clst;
+	
+	//만약에라도 무한루프가 생기면 이쪽 확인할 것
+	//이 코드가 문제가 아니라 get으로 나온게 EOChain인게 문제
+	while (fat_get(clst) != EOChain){
+		clst = fat_get(clst);
+	}
+	
+	fat_put(clst, new_clst);
+	return new_clst;
+
 }
 
 /* CLST부터 시작하는 클러스터 체인을 제거한다.
  * PCLST가 0이면 CLST가 체인의 시작이라고 가정한다. */
 void
 fat_remove_chain (cluster_t clst, cluster_t pclst) {
-	/* TODO: Your code goes here. */
+	ASSERT(clst < fat_fs->fat_length);
+
+	if (pclst != 0)
+        fat_put(pclst, EOChain);
+
+	while(clst != EOChain){
+		cluster_t next = fat_get(clst);
+        fat_put(clst, 0);               
+
+        if (fat_fs->last_clst == clst)
+            fat_fs->last_clst = 2;
+
+        clst = next;
+	}
+
+	return;
 }
 
 /* FAT 테이블의 값을 갱신한다. */
 void
 fat_put (cluster_t clst, cluster_t val) {
-	/* TODO: Your code goes here. */
+	fat_fs->fat[clst] = val;
+	return;
 }
 
 /* FAT 테이블에서 값을 가져온다. */
 cluster_t
 fat_get (cluster_t clst) {
-	/* TODO: Your code goes here. */
+	return fat_fs->fat[clst];
 }
 
 /* 클러스터 번호를 섹터 번호로 변환한다. */
 disk_sector_t
 cluster_to_sector (cluster_t clst) {
-	/* TODO: Your code goes here. */
+	return fat_fs->data_start + (clst - 2);
+}
+
+//빈 클러스터 탐색
+cluster_t find_free_cluster(void) {
+	cluster_t find_end = fat_fs->last_clst;
+	cluster_t finding_clst = find_end + 1;
+
+	//last_clst부터 시작
+	//최대지점(fat_length) 도달 시 처음(2)로 돌아가 last_clst 까지 탐색
+	while (finding_clst != find_end){
+		if (fat_get(finding_clst) == 0)
+            return finding_clst;
+		
+		finding_clst++;
+
+		if(finding_clst == fat_fs->fat_length)
+			finding_clst = 2;
+	}
+
+	//없을 시 0 반환
+    return 0; 
 }
