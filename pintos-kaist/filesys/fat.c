@@ -177,11 +177,15 @@ fat_create_chain (cluster_t clst) {
 	ASSERT(clst < fat_fs->fat_length);
 
 	unsigned int *fat = fat_fs->fat;
+	
+	//빈 클러스터 탐색
 	cluster_t new_clst = find_free_cluster();
 	if(new_clst == 0)
 		return 0;
 
 	fat_put(new_clst, EOChain);
+	
+	//탐색 성공한 클러스터 번호를 저장(이후 탐색은 last_clst부터(=next_fit))
 	fat_fs->last_clst = new_clst;
 	if(clst == 0)
 		return new_clst;
@@ -241,9 +245,9 @@ cluster_to_sector (cluster_t clst) {
 //빈 클러스터 탐색
 cluster_t find_free_cluster(void) {
 	cluster_t find_end = fat_fs->last_clst;
+	//last_clst는 할당되어 있으므로, last_clst + 1 위치부터 탐색 시작
 	cluster_t finding_clst = find_end + 1;
 
-	//last_clst부터 시작
 	//최대지점(fat_length) 도달 시 처음(2)로 돌아가 last_clst 까지 탐색
 	while (finding_clst != find_end){
 		if (fat_get(finding_clst) == 0)
