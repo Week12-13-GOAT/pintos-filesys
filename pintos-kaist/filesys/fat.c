@@ -10,18 +10,18 @@
 
 /* DISK_SECTOR_SIZE보다 작아야 함 */
 struct fat_boot {
-	unsigned int magic;
-        unsigned int sectors_per_cluster; /* 항상 1로 고정 */
-	unsigned int total_sectors;
-	unsigned int fat_start;
-        unsigned int fat_sectors; /* FAT 크기(섹터 단위) */
-	unsigned int root_dir_cluster;
+	unsigned int magic;					//	FAT 파일 시스템인지 확인하기 위한 매직 넘버
+    unsigned int sectors_per_cluster; 	//	하나의 클러스터가 차지하는 섹터 수 PintOS에서는 1로 고정 → 클러스터 == 섹터
+	unsigned int total_sectors;			//	파일 시스템 전체의 섹터 수. 디스크 크기를 의미
+	unsigned int fat_start;				//	FAT 테이블이 시작되는 섹터 번호
+    unsigned int fat_sectors; 			//	FAT 테이블이 차지하는 섹터 수
+	unsigned int root_dir_cluster;		//	루트 디렉터리가 위치한 시작 클러스터 번호
 };
 
 /* FAT 파일 시스템 정보 */
 struct fat_fs {
     struct fat_boot bs;        // 부트 섹터 정보
-    unsigned int *fat;         // FAT 배열
+    unsigned int *fat;         // FAT 배열(메모리에 로드된 FAT 테이블)
     unsigned int fat_length;   // FAT 엔트리 개수
     disk_sector_t data_start;  // 데이터 시작 섹터
     cluster_t last_clst;       // 마지막 클러스터 번호
@@ -216,6 +216,19 @@ fat_create_chain (cluster_t clst) {
 void
 fat_remove_chain (cluster_t clst, cluster_t pclst) {
 	/* TODO: Your code goes here. */
+	ASSERT(clst >= 2 && clst < fat_fs->fat_length);
+
+	if (pclst != 0) {
+		ASSERT(pclst >= 2 && pclst < fat_fs->fat_length);
+		fat_put(pclst, EOChain);
+	}
+
+	cluster_t curr = clst;
+	while (curr != EOChain) {
+		cluster_t next = fat_get(curr);
+		fat_put(curr, 0);
+		curr = next;
+	}
 }
 
 /* FAT 테이블의 값을 갱신한다. */
