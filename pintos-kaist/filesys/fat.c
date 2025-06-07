@@ -239,6 +239,6 @@ disk_sector_t
 cluster_to_sector(cluster_t clst)
 {
 	/* TODO: Your code goes here. */
-	ASSERT(clst >= 2);
-	return fat_fs->data_start + (clst - 2);
+	ASSERT(clst >= 1);
+	return fat_fs->data_start + (clst - 1);
 }
