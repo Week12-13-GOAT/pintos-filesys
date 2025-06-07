@@ -235,7 +235,9 @@ fat_remove_chain (cluster_t clst, cluster_t pclst) {
 void
 fat_put (cluster_t clst, cluster_t val) {
 	/* TODO: Your code goes here. */
-	ASSERT(clst < fat_fs->fat_length);
+	if (clst < 2 || clst >= fat_fs->fat_length) {
+		PANIC("Invalid cluster number in fat_put");
+	}
 	fat_fs->fat[clst] = val;
 }
 
