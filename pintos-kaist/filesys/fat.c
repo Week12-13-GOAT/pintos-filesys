@@ -184,6 +184,31 @@ fat_fs_init (void) {
 cluster_t
 fat_create_chain (cluster_t clst) {
 	/* TODO: Your code goes here. */
+	for (int i = 2; i < fat_fs->fat_length; i++){
+		if (fat_fs->fat[i] == 0) {
+			if (clst == 0) {
+				fat_fs->fat[i] = EOChain;
+				return i;
+			}
+			else {
+				if (clst >= fat_fs->fat_length) {
+					return 0;
+				}
+				cluster_t curr = clst;
+				while (fat_fs->fat[curr] != EOChain) {
+					curr = fat_fs->fat[curr];
+					if (curr >= fat_fs->fat_length) {
+						return 0;
+					}
+				}
+				fat_fs->fat[curr] = i;
+				fat_fs->fat[i] = EOChain;
+				return i;
+			}
+		}
+	}
+
+	return 0;
 }
 
 /* CLST부터 시작하는 클러스터 체인을 제거한다.
