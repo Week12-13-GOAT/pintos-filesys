@@ -20,7 +20,7 @@ struct inode_disk
 	unsigned magic;		 /* 매직 넘버. */
 	bool isdir;
 	// uint32_t unused[125];               /* 사용하지 않음. */
-	uint32_t unused[499];
+	char unused[496];
 };
 
 /* 길이가 SIZE 바이트인 inode가 차지할 섹터 수를 반환한다. */
@@ -44,6 +44,31 @@ struct inode
 	struct inode_disk data; /* inode 내용. */
 };
 
+void create_root_dir_inode(void)
+{
+	// 1. 루트 디렉토리용 FAT 클러스터 하나 예약
+	cluster_t clst = ROOT_DIR_CLUSTER;
+	fat_put(clst, EOChain);
+
+	// 2. 해당 클러스터 섹터를 0으로 초기화
+	uint8_t *zero_buf = calloc(1, DISK_SECTOR_SIZE);
+	if (zero_buf == NULL)
+		PANIC("create_root_dir_inode: OOM during zero padding");
+	disk_write(filesys_disk, ROOT_DIR_CLUSTER, zero_buf);
+	free(zero_buf);
+
+	// 3. inode_disk 생성 및 설정
+	struct inode_disk root_inode;
+	memset(&root_inode, 0, sizeof root_inode);
+	root_inode.start = ROOT_DIR_CLUSTER; // 루트 디렉토리의 데이터 시작 위치
+	root_inode.length = 0;				 // 초기에는 파일 크기 0
+	root_inode.magic = INODE_MAGIC;
+	root_inode.isdir = true;
+
+	// 4. 루트 inode를 디스크의 ROOT_DIR_SECTOR에 저장 (보통 sector 1)
+	disk_write(filesys_disk, ROOT_DIR_SECTOR, &root_inode);
+}
+
 /* INODE의 바이트 오프셋 POS가 위치한 디스크 섹터를 반환한다.
  * POS 위치에 데이터가 없으면 -1을 반환한다. */
 static disk_sector_t
@@ -57,12 +82,15 @@ byte_to_sector(const struct inode *inode, off_t pos)
 	// pos 오프셋이 위치한 섹터 서치
 	off_t sectors = pos / DISK_SECTOR_SIZE;
 	// 체인의 시작점 확보
+	/**
+	 * inode->data.start = 이 파일의 첫번째 섹터 번호
+	 */
 	cluster_t clst_idx = inode->data.start;
-
 	if (clst_idx == 0 || clst_idx == EOChain)
 		return -1;
 
 	// pos가 위치한 섹터의 fat인덱스 찾기
+	/* 체인을 따라가면서 저장될 위치를 찾음 */
 	while (sectors > 0)
 	{
 		clst_idx = fat_get(clst_idx);
@@ -274,30 +302,89 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 	if (inode->deny_write_cnt)
 		return 0;
 
+	/** TODO: 여기서 파일 확장을 구현해야 함
+	 * 오프셋 + 사이즈가 파일 끝보다 크다면 그만큼 섹터를 확장
+	 * 클러스터 체인에도 붙여야함
+	 * 확장 이후엔 while 루프에 진입해서 확장된 섹터에 write
+	 */
+	off_t cur_len = inode_length(inode);
+	off_t zero_pad_len = offset - cur_len;
+	bool first_padding = true;
+	if (offset + size > inode_length(inode)) // 파일 끝보다 크게 써야 한다면
+	{
+		off_t last_sector_remain_size = inode_length(inode) % DISK_SECTOR_SIZE;				   // 마지막 섹터의 남은 공간
+		off_t remain_length = (size + offset) - inode_length(inode) - last_sector_remain_size; // 확장해야할 크기 찾기
+		while (remain_length > 0)
+		{
+			fat_create_chain(inode->data.start); // 클러스터 확장
+			off_t add_size = remain_length < DISK_SECTOR_SIZE ? remain_length : DISK_SECTOR_SIZE;
+			inode->data.length += add_size;	   // 이 파일의 길이를 확장
+			remain_length -= DISK_SECTOR_SIZE; // 남은 길이 - 512
+			if (zero_pad_len > 0)			   // 0으로 패딩해야 하면
+			{
+				uint8_t zero_pad_buf[DISK_SECTOR_SIZE] = {0};			   // 512 바이트 0 패딩 버퍼
+				disk_sector_t sector_idx = byte_to_sector(inode, cur_len); // 패딩 해줘야 하는 섹터 찾기
+				if (first_padding)										   // 첫번째 섹터면
+				{
+					bounce = malloc(DISK_SECTOR_SIZE);			 // 바운스 버퍼 만들기
+					disk_read(filesys_disk, sector_idx, bounce); // 섹터의 기존 내용 복사
+					memset(bounce + last_sector_remain_size, 0, DISK_SECTOR_SIZE - last_sector_remain_size);
+					//  바운스 버퍼에 기존 내용 뒤에는 0으로 패딩
+
+					disk_write(filesys_disk, sector_idx, bounce); // 패딩까지 한 후에 disk에 쓰기
+					zero_pad_len -= last_sector_remain_size;	  // 0으로 패딩할 길이 감소
+					cur_len += last_sector_remain_size;			  // 다음 섹터를 찾기 위해 추가
+					first_padding = false;						  // 첫번째 패딩 끝남
+					free(bounce);
+				}
+				else // 첫번째 섹터가 아니면
+				{
+					disk_write(filesys_disk, sector_idx, zero_pad_buf); // 디스크에 0으로 채우기
+					zero_pad_len -= DISK_SECTOR_SIZE;					// 0으로 패딩할 길이 감소
+					cur_len += DISK_SECTOR_SIZE;						// 다음 섹터를 찾기 위해 추가
+				}
+			}
+		}
+	}
+
 	while (size > 0)
 	{
 		/* 기록할 섹터와 섹터 내 시작 오프셋. */
 		disk_sector_t sector_idx = byte_to_sector(inode, offset);
+		/** sector_ofs가 대체 뭔가??
+		 * 디스크는 데이터를 512바이트 단위로 읽고 씀
+		 * offset(파일 오프셋)은 파일 전체에서의 바이트 위치임
+		 * offset이 1300일 경우, byte_to_sector로 섹터 번호를 가져오고,
+		 * offset % 512로 섹터의 시작 위치를 가져와야 함 (어디서부터 쓸 건지 알기 위해)
+		 */
 		int sector_ofs = offset % DISK_SECTOR_SIZE;
 
 		/* inode와 섹터에 남은 바이트 중 더 작은 값. */
-		off_t inode_left = inode_length(inode) - offset;
-		int sector_left = DISK_SECTOR_SIZE - sector_ofs;
-		int min_left = inode_left < sector_left ? inode_left : sector_left;
+		off_t inode_left = inode_length(inode) - offset;					// 파일 끝까지 남은 바이트 수
+		int sector_left = DISK_SECTOR_SIZE - sector_ofs;					// 현재 섹터에 쓸 수 있는 바이트 수
+		int min_left = inode_left < sector_left ? inode_left : sector_left; // 파일 끝과 섹터 끝 중 더 작은 값
 
 		/* 이번에 실제로 이 섹터에 쓸 바이트 수. */
-		int chunk_size = size < min_left ? size : min_left;
-		if (chunk_size <= 0)
+		int chunk_size = size < min_left ? size : min_left; // 실제로 이번에 쓸 바이트 수
+		if (chunk_size <= 0)								// 이번에 쓸 바이트가 0 이하라면 탈출
 			break;
 
+		/* 섹터 전체 (512B)를 쓸 수 있는 경우라면 */
 		if (sector_ofs == 0 && chunk_size == DISK_SECTOR_SIZE)
 		{
 			/* 섹터 전체를 디스크에 바로 기록한다. */
+			/**
+			 * filesys_disk = 파일 시스템 디스크
+			 * sector_idx = 기록될 섹터 번호
+			 * buffer + bytes_written = 데이터를 가져올 버퍼 주소
+			 */
 			disk_write(filesys_disk, sector_idx, buffer + bytes_written);
 		}
-		else
+		else // 섹터 전체를 사용하지 못하고 일부만 쓸 수 있는 경우
 		{
-			/* bounce 버퍼가 필요하다. */
+			/**
+			 * bounce 버퍼는 기존의 섹터 데이터를 백업해두기 위한 버퍼
+			 */
 			if (bounce == NULL)
 			{
 				bounce = malloc(DISK_SECTOR_SIZE);
@@ -309,11 +396,12 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 			   먼저 섹터를 읽어야 한다. 그렇지 않으면 0으로 채워진
 			   섹터에서 시작한다. */
 			if (sector_ofs > 0 || chunk_size < sector_left)
+				/* 기존 섹터 데이터를 bounce 버퍼에 저장 */
 				disk_read(filesys_disk, sector_idx, bounce);
 			else
 				memset(bounce, 0, DISK_SECTOR_SIZE);
-			memcpy(bounce + sector_ofs, buffer + bytes_written, chunk_size);
-			disk_write(filesys_disk, sector_idx, bounce);
+			memcpy(bounce + sector_ofs, buffer + bytes_written, chunk_size); // 덮어쓰려는 부분만 바꾸기
+			disk_write(filesys_disk, sector_idx, bounce);					 // 다시 전체 섹터를 디스크에 쓰기
 		}
 
 		/* 진행. */

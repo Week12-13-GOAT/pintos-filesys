@@ -143,6 +143,7 @@ void fat_create(void)
 		PANIC("FAT create failed due to OOM");
 	disk_write(filesys_disk, cluster_to_sector(ROOT_DIR_CLUSTER), buf);
 	free(buf);
+	create_root_dir_inode();
 }
 
 void fat_boot_create(void)
@@ -246,7 +247,7 @@ fat_get(cluster_t clst)
 disk_sector_t
 cluster_to_sector(cluster_t clst)
 {
-	return fat_fs->data_start + (clst - 2);
+	return fat_fs->data_start + (clst - 1);
 }
 
 // 빈 클러스터 탐색

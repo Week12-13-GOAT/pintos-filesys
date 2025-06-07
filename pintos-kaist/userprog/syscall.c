@@ -504,11 +504,6 @@ void sys_seek(int fd, unsigned position)
 		return;
 	}
 
-	/* 파일 끝을 넘어가는 포인터 이동 방어 */
-	off_t length = file_length(file_obj);
-	if (position > length)
-		position = length;
-
 	/* 파일의 현재 읽기/쓰기 위치를 position으로 이동 */
 	file_seek(file_obj, position);
 }
