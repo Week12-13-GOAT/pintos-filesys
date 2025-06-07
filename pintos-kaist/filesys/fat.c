@@ -178,30 +178,30 @@ cluster_t
 fat_create_chain(cluster_t clst)
 {
 	/* TODO: Your code goes here. */
-	/* 새로운 체인을 시작할 때 */
-	cluster_t new_clst = 0;
-	/* 먼저 비어있는 클러스터를 찾자 !! */
-	for (cluster_t i = 2; i < fat_fs->fat_length; i++)
-	{
-		if (fat_get(i) == 0)
-		{
-			new_clst = i;
-			break;
-		}
-	}
-	/* fat가 꽉 참 */
+	ASSERT(clst < fat_fs->fat_length);
+
+	unsigned int *fat = fat_fs->fat;
+
+	// 빈 클러스터 탐색
+	cluster_t new_clst = find_free_cluster();
 	if (new_clst == 0)
 		return 0;
-	/* 체인 끝에 새 클러스터를 추가할 때 */
-	if (clst != 0)
-	{
-		cluster_t next = clst;
-		while (fat_get(next) != EOChain)
-			next = fat_get(next);
 
-		fat_put(next, new_clst);
+	fat_put(new_clst, EOChain);
+
+	// 탐색 성공한 클러스터 번호를 저장(이후 탐색은 last_clst부터(=next_fit))
+	fat_fs->last_clst = new_clst;
+	if (clst == 0)
+		return new_clst;
+
+	// 만약에라도 무한루프가 생기면 이쪽 확인할 것
+	// 이 코드가 문제가 아니라 get으로 나온게 EOChain인게 문제
+	while (fat_get(clst) != EOChain)
+	{
+		clst = fat_get(clst);
 	}
 
+	fat_put(clst, new_clst);
 	return new_clst;
 }
 
@@ -209,22 +209,30 @@ fat_create_chain(cluster_t clst)
  * PCLST가 0이면 CLST가 체인의 시작이라고 가정한다. */
 void fat_remove_chain(cluster_t clst, cluster_t pclst)
 {
-	cluster_t next;
+	ASSERT(clst < fat_fs->fat_length);
+
 	if (pclst != 0)
 		fat_put(pclst, EOChain);
 
 	while (clst != EOChain)
 	{
-		next = fat_get(clst);
+		cluster_t next = fat_get(clst);
 		fat_put(clst, 0);
+
+		if (fat_fs->last_clst == clst)
+			fat_fs->last_clst = 2;
+
 		clst = next;
 	}
+
+	return;
 }
 
 /* FAT 테이블의 값을 갱신한다. */
 void fat_put(cluster_t clst, cluster_t val)
 {
 	fat_fs->fat[clst] = val;
+	return;
 }
 
 /* FAT 테이블에서 클러스터 cls가 가리키고 있는 다음 클러스터 번호 반환. */
@@ -238,7 +246,28 @@ fat_get(cluster_t clst)
 disk_sector_t
 cluster_to_sector(cluster_t clst)
 {
-	/* TODO: Your code goes here. */
-	ASSERT(clst >= 1);
-	return fat_fs->data_start + (clst - 1);
+	return fat_fs->data_start + (clst - 2);
+}
+
+// 빈 클러스터 탐색
+cluster_t find_free_cluster(void)
+{
+	cluster_t find_end = fat_fs->last_clst;
+	// last_clst는 할당되어 있으므로, last_clst + 1 위치부터 탐색 시작
+	cluster_t finding_clst = find_end + 1;
+
+	// 최대지점(fat_length) 도달 시 처음(2)로 돌아가 last_clst 까지 탐색
+	while (finding_clst != find_end)
+	{
+		if (fat_get(finding_clst) == 0)
+			return finding_clst;
+
+		finding_clst++;
+
+		if (finding_clst == fat_fs->fat_length)
+			finding_clst = 2;
+	}
+
+	// 없을 시 0 반환
+	return 0;
 }

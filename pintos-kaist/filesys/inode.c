@@ -6,6 +6,7 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
+#include "filesys/fat.h"
 
 /* inode를 식별하는 매직 넘버. */
 #define INODE_MAGIC 0x494e4f44
@@ -14,10 +15,12 @@
  * 크기는 정확히 DISK_SECTOR_SIZE 바이트여야 한다. */
 struct inode_disk
 {
-	disk_sector_t start;  /* 첫 데이터 섹터. */
-	off_t length;		  /* 파일 크기(바이트). */
-	unsigned magic;		  /* 매직 넘버. */
-	uint32_t unused[125]; /* 사용하지 않음. */
+	disk_sector_t start; /* 첫 데이터 섹터. */
+	off_t length;		 /* 파일 크기(바이트). */
+	unsigned magic;		 /* 매직 넘버. */
+	bool isdir;
+	// uint32_t unused[125];               /* 사용하지 않음. */
+	uint32_t unused[499];
 };
 
 /* 길이가 SIZE 바이트인 inode가 차지할 섹터 수를 반환한다. */
@@ -47,10 +50,28 @@ static disk_sector_t
 byte_to_sector(const struct inode *inode, off_t pos)
 {
 	ASSERT(inode != NULL);
-	if (pos < inode->data.length)
-		return inode->data.start + pos / DISK_SECTOR_SIZE;
-	else
+
+	if (pos >= inode->data.length)
 		return -1;
+
+	// pos 오프셋이 위치한 섹터 서치
+	off_t sectors = pos / DISK_SECTOR_SIZE;
+	// 체인의 시작점 확보
+	cluster_t clst_idx = inode->data.start;
+
+	if (clst_idx == 0 || clst_idx == EOChain)
+		return -1;
+
+	// pos가 위치한 섹터의 fat인덱스 찾기
+	while (sectors > 0)
+	{
+		clst_idx = fat_get(clst_idx);
+		if (clst_idx == EOChain)
+			return -1;
+		sectors--;
+	}
+
+	return cluster_to_sector(clst_idx);
 }
 
 /* 동일한 inode를 두 번 열 때 같은 `struct inode'를 반환하기 위한
