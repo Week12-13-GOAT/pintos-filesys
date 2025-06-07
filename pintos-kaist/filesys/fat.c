@@ -236,7 +236,7 @@ void
 fat_put (cluster_t clst, cluster_t val) {
 	/* TODO: Your code goes here. */
 	if (clst < 2 || clst >= fat_fs->fat_length) {
-		PANIC("Invalid cluster number in fat_put");
+		PANIC("fat put : Invalid cluster number\n");
 	}
 	fat_fs->fat[clst] = val;
 }
@@ -245,6 +245,10 @@ fat_put (cluster_t clst, cluster_t val) {
 cluster_t
 fat_get (cluster_t clst) {
 	/* TODO: Your code goes here. */
+	if (clst < 2 || clst >= fat_fs->fat_length) {
+		PANIC("fat get : Invalid cluster number\n");
+	}
+	return fat_fs->fat[clst];
 }
 
 /* 클러스터 번호를 섹터 번호로 변환한다. */
