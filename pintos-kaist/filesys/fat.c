@@ -235,6 +235,8 @@ fat_remove_chain (cluster_t clst, cluster_t pclst) {
 void
 fat_put (cluster_t clst, cluster_t val) {
 	/* TODO: Your code goes here. */
+	ASSERT(clst < fat_fs->fat_length);
+	fat_fs->fat[clst] = val;
 }
 
 /* FAT 테이블에서 값을 가져온다. */
