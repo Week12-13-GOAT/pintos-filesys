@@ -315,38 +315,20 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 	{
 		off_t last_sector_use_size = inode_length(inode) % DISK_SECTOR_SIZE; // 마지막 섹터의 사용 공간
 		off_t last_sector_remain_size = DISK_SECTOR_SIZE - last_sector_use_size;
-		off_t remain_length = (size + offset) - inode_length(inode) - last_sector_remain_size; // 확장해야할 크기 찾기
+		off_t remain_length = (size + offset) - inode_length(inode); // 확장해야할 크기 찾기
 
-				while (remain_length > 0)
+		remain_length -= last_sector_remain_size;
+		inode->data.length += remain_length > last_sector_remain_size ? remain_length : last_sector_remain_size;
+
+		while (remain_length > 0)
 		{
-			fat_create_chain(inode->data.start); // 클러스터 확장
+			cluster_t new_clst = fat_create_chain(inode->data.start); // 클러스터 확장
 			off_t add_size = remain_length < DISK_SECTOR_SIZE ? remain_length : DISK_SECTOR_SIZE;
-			inode->data.length += add_size;	   // 이 파일의 길이를 확장
-			remain_length -= DISK_SECTOR_SIZE; // 남은 길이 - 512
-			if (zero_pad_len > 0)			   // 0으로 패딩해야 하면
-			{
-				uint8_t zero_pad_buf[DISK_SECTOR_SIZE] = {0};			   // 512 바이트 0 패딩 버퍼
-				disk_sector_t sector_idx = byte_to_sector(inode, cur_len); // 패딩 해줘야 하는 섹터 찾기
-				if (first_padding)										   // 첫번째 섹터면
-				{
-					bounce = malloc(DISK_SECTOR_SIZE);			 // 바운스 버퍼 만들기
-					disk_read(filesys_disk, sector_idx, bounce); // 섹터의 기존 내용 복사
-					memset(bounce + last_sector_use_size, 0, DISK_SECTOR_SIZE - last_sector_use_size);
-					//  바운스 버퍼에 기존 내용 뒤에는 0으로 패딩
-
-					disk_write(filesys_disk, sector_idx, bounce); // 패딩까지 한 후에 disk에 쓰기
-					zero_pad_len -= last_sector_use_size;		  // 0으로 패딩할 길이 감소
-					cur_len += last_sector_use_size;			  // 다음 섹터를 찾기 위해 추가
-					first_padding = false;						  // 첫번째 패딩 끝남
-					free(bounce);
-				}
-				else // 첫번째 섹터가 아니면
-				{
-					disk_write(filesys_disk, sector_idx, zero_pad_buf); // 디스크에 0으로 채우기
-					zero_pad_len -= DISK_SECTOR_SIZE;					// 0으로 패딩할 길이 감소
-					cur_len += DISK_SECTOR_SIZE;						// 다음 섹터를 찾기 위해 추가
-				}
-			}
+			inode->data.length += add_size;				  // 이 파일의 길이를 확장
+			remain_length -= DISK_SECTOR_SIZE;			  // 남은 길이 - 512
+			uint8_t zero_pad_buf[DISK_SECTOR_SIZE] = {0}; // 512 바이트 0 패딩 버퍼
+			disk_sector_t new_sector = cluster_to_sector(new_clst);
+			disk_write(filesys_disk, new_sector, zero_pad_buf);
 		}
 	}
 
