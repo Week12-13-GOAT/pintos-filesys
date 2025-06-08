@@ -62,7 +62,7 @@ bool filesys_create(const char *name, off_t initial_size)
 	struct dir *dir = dir_open_root();
 	bool success = (dir != NULL && name != NULL && strlen(name) <= 14 && fat_allocate(1, &inode_sector) && inode_create(inode_sector, initial_size) && dir_add(dir, name, inode_sector));
 	if (!success && inode_sector != 0)
-		printf("[%s] fail to filesys_create !!\n", name);
+		dprintf("[%s] fail to filesys_create !!\n", name);
 	// free_map_release(inode_sector, 1);
 	dir_close(dir);
 
