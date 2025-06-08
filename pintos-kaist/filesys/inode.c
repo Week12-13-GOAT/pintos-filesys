@@ -313,9 +313,11 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 	bool first_padding = true;
 	if (offset + size > inode_length(inode)) // 파일 끝보다 크게 써야 한다면
 	{
-		off_t last_sector_use_size = inode_length(inode) % DISK_SECTOR_SIZE;				// 마지막 섹터의 사용 공간
-		off_t remain_length = (size + offset) - inode_length(inode) - last_sector_use_size; // 확장해야할 크기 찾기
-		while (remain_length > 0)
+		off_t last_sector_use_size = inode_length(inode) % DISK_SECTOR_SIZE; // 마지막 섹터의 사용 공간
+		off_t last_sector_remain_size = DISK_SECTOR_SIZE - last_sector_use_size;
+		off_t remain_length = (size + offset) - inode_length(inode) - last_sector_remain_size; // 확장해야할 크기 찾기
+
+				while (remain_length > 0)
 		{
 			fat_create_chain(inode->data.start); // 클러스터 확장
 			off_t add_size = remain_length < DISK_SECTOR_SIZE ? remain_length : DISK_SECTOR_SIZE;
