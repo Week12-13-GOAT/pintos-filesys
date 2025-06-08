@@ -411,6 +411,7 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 		bytes_written += chunk_size;
 	}
 	free(bounce);
+	inode_flush(inode);
 
 	return bytes_written;
 }
@@ -437,4 +438,9 @@ void inode_allow_write(struct inode *inode)
 off_t inode_length(const struct inode *inode)
 {
 	return inode->data.length;
+}
+
+void inode_flush(struct inode *inode)
+{
+	disk_write(filesys_disk, inode->sector, &inode->data);
 }
