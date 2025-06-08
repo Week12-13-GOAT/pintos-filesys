@@ -313,8 +313,8 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 	bool first_padding = true;
 	if (offset + size > inode_length(inode)) // 파일 끝보다 크게 써야 한다면
 	{
-		off_t last_sector_remain_size = inode_length(inode) % DISK_SECTOR_SIZE;				   // 마지막 섹터의 남은 공간
-		off_t remain_length = (size + offset) - inode_length(inode) - last_sector_remain_size; // 확장해야할 크기 찾기
+		off_t last_sector_use_size = inode_length(inode) % DISK_SECTOR_SIZE;				// 마지막 섹터의 사용 공간
+		off_t remain_length = (size + offset) - inode_length(inode) - last_sector_use_size; // 확장해야할 크기 찾기
 		while (remain_length > 0)
 		{
 			fat_create_chain(inode->data.start); // 클러스터 확장
@@ -329,12 +329,12 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 				{
 					bounce = malloc(DISK_SECTOR_SIZE);			 // 바운스 버퍼 만들기
 					disk_read(filesys_disk, sector_idx, bounce); // 섹터의 기존 내용 복사
-					memset(bounce + last_sector_remain_size, 0, DISK_SECTOR_SIZE - last_sector_remain_size);
+					memset(bounce + last_sector_use_size, 0, DISK_SECTOR_SIZE - last_sector_use_size);
 					//  바운스 버퍼에 기존 내용 뒤에는 0으로 패딩
 
 					disk_write(filesys_disk, sector_idx, bounce); // 패딩까지 한 후에 disk에 쓰기
-					zero_pad_len -= last_sector_remain_size;	  // 0으로 패딩할 길이 감소
-					cur_len += last_sector_remain_size;			  // 다음 섹터를 찾기 위해 추가
+					zero_pad_len -= last_sector_use_size;		  // 0으로 패딩할 길이 감소
+					cur_len += last_sector_use_size;			  // 다음 섹터를 찾기 위해 추가
 					first_padding = false;						  // 첫번째 패딩 끝남
 					free(bounce);
 				}
