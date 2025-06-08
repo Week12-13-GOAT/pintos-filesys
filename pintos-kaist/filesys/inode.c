@@ -54,11 +54,12 @@ void create_root_dir_inode(void)
 	uint8_t *zero_buf = calloc(1, DISK_SECTOR_SIZE);
 	if (zero_buf == NULL)
 		PANIC("create_root_dir_inode: OOM during zero padding");
-	disk_write(filesys_disk, ROOT_DIR_CLUSTER, zero_buf);
+	disk_write(filesys_disk, cluster_to_sector(ROOT_DIR_CLUSTER), zero_buf);
 	free(zero_buf);
 
 	// 3. inode_disk 생성 및 설정
 	struct inode_disk root_inode;
+	ASSERT(sizeof(root_inode) == DISK_SECTOR_SIZE);
 	memset(&root_inode, 0, sizeof root_inode);
 	root_inode.start = ROOT_DIR_CLUSTER; // 루트 디렉토리의 데이터 시작 위치
 	root_inode.length = 0;				 // 초기에는 파일 크기 0
@@ -76,7 +77,7 @@ byte_to_sector(const struct inode *inode, off_t pos)
 {
 	ASSERT(inode != NULL);
 
-	if (pos >= inode->data.length)
+	if (pos > inode->data.length)
 		return -1;
 
 	// pos 오프셋이 위치한 섹터 서치
@@ -132,7 +133,7 @@ bool inode_create(disk_sector_t sector, off_t length)
 		size_t sectors = bytes_to_sectors(length);
 		disk_inode->length = length;
 		disk_inode->magic = INODE_MAGIC;
-		if (free_map_allocate(sectors, &disk_inode->start))
+		if (fat_allocate(sectors, &disk_inode->start))
 		{
 			disk_write(filesys_disk, sector, disk_inode);
 			if (sectors > 0)

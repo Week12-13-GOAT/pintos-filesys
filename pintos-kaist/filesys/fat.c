@@ -143,7 +143,6 @@ void fat_create(void)
 		PANIC("FAT create failed due to OOM");
 	disk_write(filesys_disk, cluster_to_sector(ROOT_DIR_CLUSTER), buf);
 	free(buf);
-	create_root_dir_inode();
 }
 
 void fat_boot_create(void)
@@ -163,8 +162,9 @@ void fat_boot_create(void)
 void fat_fs_init(void)
 {
 	/* TODO: Your code goes here. */
-	fat_fs->fat_length = fat_fs->bs.fat_sectors;
+	fat_fs->fat_length = fat_fs->bs.fat_sectors * DISK_SECTOR_SIZE / (sizeof(cluster_t) * SECTORS_PER_CLUSTER);
 	fat_fs->data_start = fat_fs->bs.fat_start + fat_fs->bs.fat_sectors;
+	fat_fs->last_clst = ROOT_DIR_CLUSTER + 1;
 	lock_init(&fat_fs->write_lock);
 }
 
@@ -197,7 +197,7 @@ fat_create_chain(cluster_t clst)
 
 	// 만약에라도 무한루프가 생기면 이쪽 확인할 것
 	// 이 코드가 문제가 아니라 get으로 나온게 EOChain인게 문제
-	while (fat_get(clst) != EOChain)
+	while (clst != ROOT_DIR_CLUSTER && fat_get(clst) != EOChain)
 	{
 		clst = fat_get(clst);
 	}
@@ -271,4 +271,36 @@ cluster_t find_free_cluster(void)
 
 	// 없을 시 0 반환
 	return 0;
+}
+
+/* 파일을 처음 만들 때 섹터를 할당 */
+bool fat_allocate(size_t cnt, disk_sector_t *sectorp)
+{
+	if (cnt == 0)
+		return true;
+	ASSERT(cnt > 0);
+
+	cluster_t start = fat_create_chain(0); // 첫번째 클러스터
+	cnt--;
+
+	cluster_t prev = start;
+
+	while (prev != 0 && cnt > 0)
+	{
+		/* 클러스터 체인 만들기 */
+		prev = fat_create_chain(prev);
+		cnt--;
+	}
+
+	/* 섹터에 충분한 공간이 남지 않았으면 */
+	if (cnt != 0)
+	{
+		/* 만들던 체인 모두 삭제 */
+		fat_remove_chain(start, 0);
+	}
+	else
+		/* 클러스터 체인 시작 번호 대입 */
+		*sectorp = start;
+
+	return start != 0;
 }

@@ -36,5 +36,6 @@ void fat_put(cluster_t clst, cluster_t val);
 disk_sector_t cluster_to_sector(cluster_t clst);
 cluster_t find_free_cluster(void);
 void create_root_dir_inode(void);
+bool fat_allocate(size_t cnt, disk_sector_t *sectorp);
 
 #endif /* filesys/fat.h */
