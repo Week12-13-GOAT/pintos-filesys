@@ -6,20 +6,26 @@
 #include "filesys/inode.h"
 #include "threads/malloc.h"
 
-/* 디렉터리 구조체. */
-struct dir
-{
-	struct inode *inode; /* 저장소 역할을 하는 inode. */
-	off_t pos;			 /* 현재 위치. */
-};
-
 /* 하나의 디렉터리 엔트리. */
-struct dir_entry
+
+static void dump_dir(struct dir *dir)
 {
-	disk_sector_t inode_sector; /* 헤더가 위치한 섹터 번호. */
-	char name[NAME_MAX + 1];	/* 널 종료된 파일 이름. */
-	bool in_use;				/* 사용 중인지 여부. */
-};
+#ifdef DEBUG_LOG
+	struct dir_entry e;
+	off_t ofs = 0;
+	int idx = 0;
+
+	printf("---- DIR DUMP ----\n");
+	while (inode_read_at(dir->inode, &e, sizeof e, ofs) == sizeof e)
+	{
+		printf("slot %02d : in_use=%d  name=%s  sector=%u\n",
+			   idx, e.in_use, e.name, e.inode_sector);
+		ofs += sizeof e;
+		idx++;
+	}
+	printf("-------------------\n");
+#endif
+}
 
 /* 주어진 SECTOR에 ENTRY_CNT개의 엔트리를 저장할 공간을 갖는
  * 디렉터리를 생성합니다. 성공하면 true, 실패하면 false를 반환합니다. */
@@ -169,23 +175,6 @@ bool dir_add(struct dir *dir, const char *name, disk_sector_t inode_sector)
 	e.inode_sector = inode_sector;
 	success = inode_write_at(dir->inode, &e, sizeof e, ofs) == sizeof e;
 
-#ifdef DEBUG_LOG // 디버그 용으로 조건부 컴파일 가능
-	// 확인용 읽기
-	if (success)
-	{
-		struct dir_entry verify;
-		off_t check = inode_read_at(dir->inode, &verify, sizeof verify, ofs);
-		if (check != sizeof verify)
-		{
-			printf("Failed to re-read dir_entry at ofs %d\n", (int)ofs);
-		}
-		else
-		{
-			printf("[VERIFY] name: %s, sector: %u, in_use: %d\n",
-				   verify.name, verify.inode_sector, verify.in_use);
-		}
-	}
-#endif
 done:
 	return success;
 }

@@ -7,4 +7,4 @@ filesys/filesys.o: ../../filesys/filesys.c \
  ../../include/filesys/file.h ../../include/filesys/free-map.h \
  ../../include/devices/disk.h ../../include/lib/inttypes.h \
  ../../include/filesys/inode.h ../../include/filesys/directory.h \
- ../../include/filesys/fat.h
+ ../../include/filesys/off_t.h ../../include/filesys/fat.h

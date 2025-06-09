@@ -274,7 +274,7 @@ cluster_t find_free_cluster(void)
 }
 
 /* 파일을 처음 만들 때 섹터를 할당 */
-bool fat_allocate(size_t cnt, disk_sector_t *sectorp)
+bool fat_allocate(size_t cnt, cluster_t *clusterp)
 {
 	if (cnt == 0)
 		return true;
@@ -300,7 +300,7 @@ bool fat_allocate(size_t cnt, disk_sector_t *sectorp)
 	}
 	else
 		/* 클러스터 체인 시작 번호 대입 */
-		*sectorp = start;
+		*clusterp = start;
 
 	return start != 0;
 }

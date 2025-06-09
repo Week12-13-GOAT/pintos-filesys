@@ -57,16 +57,13 @@ void filesys_done(void)
  * 같은 이름의 파일이 이미 존재하거나 내부 메모리 할당에 실패하면 실패합니다. */
 bool filesys_create(const char *name, off_t initial_size)
 {
-	// printf("FILE NAME :%s\n", name);
+	cluster_t inode_clst = 0;
 	disk_sector_t inode_sector = 0;
 	struct dir *dir = dir_open_root();
-	bool success = (dir != NULL && name != NULL && strlen(name) <= 14 && fat_allocate(1, &inode_sector) && inode_create(inode_sector, initial_size) && dir_add(dir, name, inode_sector));
+	bool success = (dir != NULL && name != NULL && strlen(name) <= 14 && fat_allocate(1, &inode_clst) && inode_create(cluster_to_sector(inode_clst), initial_size) && dir_add(dir, name, cluster_to_sector(inode_clst)));
 	if (!success && inode_sector != 0)
 		dprintf("[%s] fail to filesys_create !!\n", name);
-	// free_map_release(inode_sector, 1);
-	dir_close(dir);
 
-	// printf("sucees? :%d\n", success);
 	return success;
 }
 
@@ -124,4 +121,32 @@ do_format(void)
 #endif
 
 	printf("done.\n");
+}
+
+void dump_root_dir(void)
+{
+#ifdef DEBUG_LOG
+	struct dir *dir = dir_open_root();
+	if (!dir)
+	{
+		printf("[DEBUG] Root dir open failed\n");
+		return;
+	}
+
+	struct dir_entry e;
+	off_t ofs = 0;
+	int slot = 0;
+
+	printf("======= ROOT DIR DUMP =======\n");
+	while (inode_read_at(dir->inode, &e, sizeof e, ofs) == sizeof e)
+	{
+		printf("slot %02d : in_use=%d  name='%s'  sector=%u\n",
+			   slot, e.in_use, e.name, e.inode_sector);
+		ofs += sizeof e;
+		slot++;
+	}
+	printf("======= END DUMP ==========\n");
+
+	dir_close(dir);
+#endif
 }

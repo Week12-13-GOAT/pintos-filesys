@@ -142,12 +142,13 @@ bool inode_create(disk_sector_t sector, off_t length)
 				size_t i;
 
 				for (i = 0; i < sectors; i++)
-					disk_write(filesys_disk, disk_inode->start + i, zeros);
+					disk_write(filesys_disk, cluster_to_sector(disk_inode->start) + i, zeros);
 			}
 			success = true;
 		}
 		free(disk_inode);
 	}
+
 	return success;
 }
 
@@ -241,6 +242,7 @@ void inode_remove(struct inode *inode)
  * 실제로 읽은 바이트 수를 반환한다. */
 off_t inode_read_at(struct inode *inode, void *buffer_, off_t size, off_t offset)
 {
+
 	uint8_t *buffer = buffer_;
 	off_t bytes_read = 0;
 	uint8_t *bounce = NULL;
