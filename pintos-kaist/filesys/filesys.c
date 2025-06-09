@@ -7,6 +7,8 @@
 #include "filesys/inode.h"
 #include "filesys/directory.h"
 #include "devices/disk.h"
+// Project 4 : Filesys
+#include "filesys/fat.h"
 
 /* 파일 시스템을 담고 있는 디스크. */
 struct disk *filesys_disk;
@@ -56,20 +58,23 @@ filesys_done (void) {
  * 같은 이름의 파일이 이미 존재하거나 내부 메모리 할당에 실패하면 실패합니다. */
 bool
 filesys_create (const char *name, off_t initial_size) {
-	// printf("FILE NAME :%s\n", name);
+	cluster_t inode_clst = 0;
 	disk_sector_t inode_sector = 0;
 	struct dir *dir = dir_open_root ();
 	bool success = (dir != NULL
 			&& name !=NULL
 			&& strlen(name)<=14
-			&& free_map_allocate (1, &inode_sector)
-			&& inode_create (inode_sector, initial_size)
-			&& dir_add (dir, name, inode_sector));
-	if (!success && inode_sector != 0)
-		free_map_release (inode_sector, 1);
-	dir_close (dir);
+			// Project 4 : FILESYS
+			&& fat_allocate(1, &inode_clst)
+			&& inode_create (cluster_to_sector(inode_clst), initial_size)
+			&& dir_add (dir, name, cluster_to_sector(inode_clst)));
+	if (!success && inode_sector != 0) {
+		// Project 2 : USERPROG
+		// free_map_release (inode_sector, 1);
+		// Project 4 : FILESYS
+		dprintf("[%s] fail to filesys_create !!\n", name);
+	}
 
-	// printf("sucees? :%d\n", success);
 	return success;
 }
 
@@ -115,6 +120,7 @@ do_format (void) {
 	/* FAT을 생성하여 디스크에 저장합니다. */
 	fat_create ();
 	fat_close ();
+	create_root_dir_inode();
 #else
 	free_map_create ();
 	if (!dir_create (ROOT_DIR_SECTOR, 16))

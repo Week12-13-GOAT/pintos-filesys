@@ -42,15 +42,70 @@ struct inode {
         struct inode_disk data;             /* inode 내용. */
 };
 
+void create_root_dir_inode(void) {
+	// root dir 생성
+	cluster_t clst = ROOT_DIR_CLUSTER;
+	// 루트 디렉토리는 하나의 클러스트로 끝남(끝 표시 : EOChain)
+	fat_put(clst, EOChain);
+
+	// 패딩 초기화
+	uint8_t *zero_buf = calloc(1, DISK_SECTOR_SIZE);
+	// 예외 처리
+	if (zero_buf == NULL){
+		PANIC("create_root_dir_inode: OOM during zero padding");
+	}
+	// 디스크에 패딩 추가
+	disk_write(filesys_disk, cluster_to_sector(clst), zero_buf);
+	// 할당 해제
+	free(zero_buf);
+
+	// 루트 아이노드 선언
+	struct inode_disk root_inode;
+	// 루트 아이노드가 512 이면 통과
+	ASSERT(sizeof(root_inode) == DISK_SECTOR_SIZE);
+	memset(&root_inode, 0, sizeof root_inode);	// 메모리 초기화
+	root_inode.start = clst;					// 루트 디렉토리 데이터 시작 위치
+	root_inode.length = 0;						// 이건 처음 생성하니까 크기는 0
+	root_inode.magic = INODE_MAGIC;		
+	root_inode.isdir = true;					// 디렉토리 맞아요
+
+	// 루트 디렉토리 inode를 디스크에 저장
+	disk_write(filesys_disk, ROOT_DIR_SECTOR, &root_inode);
+}
+
 /* INODE의 바이트 오프셋 POS가 위치한 디스크 섹터를 반환한다.
  * POS 위치에 데이터가 없으면 -1을 반환한다. */
 static disk_sector_t
 byte_to_sector (const struct inode *inode, off_t pos) {
 	ASSERT (inode != NULL);
+	
+	// Project 2 : USERPROG
+	/*
 	if (pos < inode->data.length)
 		return inode->data.start + pos / DISK_SECTOR_SIZE;
 	else
 		return -1;
+	*/
+	
+	// Project 4 : FILESYS
+	if (pos > inode->data.length)
+		return -1;
+
+	cluster_t clst = inode->data.start;
+	if (clst == 0 || clst == EOChain)
+		return -1;
+
+	off_t sectors_offset = pos / DISK_SECTOR_SIZE;
+	while (sectors_offset > 0)
+	{
+		clst = fat_get(clst);
+		if (clst == EOChain) {
+			return -1;
+		}
+		sectors_offset--;
+	}
+
+	return cluster_to_sector(clst);
 }
 
 /* 동일한 inode를 두 번 열 때 같은 `struct inode'를 반환하기 위한
@@ -82,14 +137,17 @@ inode_create (disk_sector_t sector, off_t length) {
 		size_t sectors = bytes_to_sectors (length);
 		disk_inode->length = length;
 		disk_inode->magic = INODE_MAGIC;
-		if (free_map_allocate (sectors, &disk_inode->start)) {
+		if (// Project 2 : USERPROG
+			// free_map_allocate (sectors, &disk_inode->start)
+			// Project 4 : Filesys
+			fat_allocate(sectors, &disk_inode->start)) {
 			disk_write (filesys_disk, sector, disk_inode);
 			if (sectors > 0) {
 				static char zeros[DISK_SECTOR_SIZE];
 				size_t i;
 
 				for (i = 0; i < sectors; i++) 
-					disk_write (filesys_disk, disk_inode->start + i, zeros); 
+					disk_write (filesys_disk, cluster_to_sector(disk_inode->start) + i, zeros); 
 			}
 			success = true; 
 		} 
@@ -239,10 +297,15 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 		return 0;
 	
 	off_t curr_len = inode_length(inode);
-	if (offset + size > inode_length(inode)) {
+	off_t extend_size = offset + size;
+	if (extend_size > inode_length(inode)) {
 		off_t last_sector_use_size = inode_length(inode) % DISK_SECTOR_SIZE;
+		off_t remain_length = extend_size - inode_length(inode);
 		off_t last_sector_remain_size = DISK_SECTOR_SIZE - last_sector_use_size;
-		off_t remain_length = (size + offset) - inode_length(inode);
+
+		if (inode->data.start == 0) {
+			inode->data.start = fat_create_chain(0);
+		}
 
 		if (remain_length < last_sector_remain_size) {
 			inode->data.length += remain_length;
