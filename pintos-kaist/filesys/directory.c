@@ -169,6 +169,23 @@ bool dir_add(struct dir *dir, const char *name, disk_sector_t inode_sector)
 	e.inode_sector = inode_sector;
 	success = inode_write_at(dir->inode, &e, sizeof e, ofs) == sizeof e;
 
+#ifdef DEBUG_LOG // 디버그 용으로 조건부 컴파일 가능
+	// 확인용 읽기
+	if (success)
+	{
+		struct dir_entry verify;
+		off_t check = inode_read_at(dir->inode, &verify, sizeof verify, ofs);
+		if (check != sizeof verify)
+		{
+			printf("Failed to re-read dir_entry at ofs %d\n", (int)ofs);
+		}
+		else
+		{
+			printf("[VERIFY] name: %s, sector: %u, in_use: %d\n",
+				   verify.name, verify.inode_sector, verify.in_use);
+		}
+	}
+#endif
 done:
 	return success;
 }

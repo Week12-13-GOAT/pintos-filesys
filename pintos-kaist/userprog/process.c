@@ -270,6 +270,14 @@ int process_exec(void *f_name)
    _if.cs = SEL_UCSEG;
    _if.eflags = FLAG_IF | FLAG_MBS;
 
+   /* Close previously running executable, if any. */
+   if (thread_current()->running_file != NULL)
+   {
+      file_allow_write(thread_current()->running_file);
+      file_close(thread_current()->running_file);
+      thread_current()->running_file = NULL;
+   }
+
    lock_acquire(&filesys_lock);
    struct file *new_file = filesys_open(first_word);
    lock_release(&filesys_lock);
