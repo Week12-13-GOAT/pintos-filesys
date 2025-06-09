@@ -6,6 +6,8 @@
 #include "filesys/filesys.h"
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
+// Project 4 : filesys
+#include "filesys/fat.h"
 
 /* inode를 식별하는 매직 넘버. */
 #define INODE_MAGIC 0x494e4f44
@@ -15,8 +17,10 @@
 struct inode_disk {
         disk_sector_t start;                /* 첫 데이터 섹터. */
         off_t length;                       /* 파일 크기(바이트). */
+		bool isdir;							/* 디렉토리 여부*/
         unsigned magic;                     /* 매직 넘버. */
-        uint32_t unused[125];               /* 사용하지 않음. */
+        // uint32_t unused[125];            /* 사용하지 않음. */
+		char unused[496];	
 };
 
 /* 길이가 SIZE 바이트인 inode가 차지할 섹터 수를 반환한다. */
@@ -233,6 +237,42 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
 	if (inode->deny_write_cnt)
 		return 0;
+	
+	off_t curr_len = inode_length(inode);
+	if (offset + size > inode_length(inode)) {
+		off_t last_sector_use_size = inode_length(inode) % DISK_SECTOR_SIZE;
+		off_t last_sector_remain_size = DISK_SECTOR_SIZE - last_sector_use_size;
+		off_t remain_length = (size + offset) - inode_length(inode);
+
+		if (remain_length < last_sector_remain_size) {
+			inode->data.length += remain_length;
+			remain_length = 0;
+		}
+		else {
+			inode->data.length += last_sector_remain_size;
+			remain_length -= last_sector_remain_size;
+		}
+
+		while (remain_length > 0) {
+			cluster_t new_clst = fat_create_chain(inode->data.start);
+			if (new_clst == 0){
+				break;
+			}
+
+			off_t add_size;
+			if (remain_length < DISK_SECTOR_SIZE) {
+				inode->data.length += remain_length;
+				remain_length = 0;
+			} 
+			else {
+				inode->data.length += DISK_SECTOR_SIZE;
+				remain_length -= DISK_SECTOR_SIZE;
+			}
+			uint8_t zero_pad_buf[DISK_SECTOR_SIZE] = {0};
+			disk_sector_t new_sector = cluster_to_sector(new_clst);
+			disk_write(filesys_disk, new_sector, zero_pad_buf);
+		}
+	}
 
 	while (size > 0) {
                 /* 기록할 섹터와 섹터 내 시작 오프셋. */
@@ -277,6 +317,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 		bytes_written += chunk_size;
 	}
 	free (bounce);
+	inode_flush(inode);
 
 	return bytes_written;
 }
@@ -304,4 +345,8 @@ inode_allow_write (struct inode *inode) {
 off_t
 inode_length (const struct inode *inode) {
 	return inode->data.length;
+}
+
+void inode_flush(struct inode *inode) {
+	disk_write(filesys_disk, inode->sector, &inode->data);
 }

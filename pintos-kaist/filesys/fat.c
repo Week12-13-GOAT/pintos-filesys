@@ -161,7 +161,7 @@ fat_fs_init (void) {
 	lock_init(&fat_fs->write_lock);
 
 	/*	이건 뭐 공식임 외워. 
-	 *	FAT 테이블 항목 개수 = FAT 테이블 총 섹터 수 × 섹터 크기 ÷ 클러스터 항목 크기
+	 *	FAT 테이블 항목 개수 = FAT 테이블 총 섹터 수 × 섹터 크기 / 클러스터 항목 크기
 	 */
 	fat_fs->fat_length = fat_fs->bs.fat_sectors * DISK_SECTOR_SIZE / sizeof(cluster_t);
 
@@ -171,7 +171,7 @@ fat_fs_init (void) {
 	/*	클러스터 번호 0번과 1번은 예약되어 있으므로
 	 *	→ 새로운 클러스터 할당 시 2번부터 시작!
 	 */
-	fat_fs->last_clst =2;
+	fat_fs->last_clst = ROOT_DIR_CLUSTER + 1;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -235,7 +235,7 @@ fat_remove_chain (cluster_t clst, cluster_t pclst) {
 void
 fat_put (cluster_t clst, cluster_t val) {
 	/* TODO: Your code goes here. */
-	if (clst < 2 || clst >= fat_fs->fat_length) {
+	if (clst < 1 || clst >= fat_fs->fat_length) {
 		PANIC("fat put : Invalid cluster number\n");
 	}
 	fat_fs->fat[clst] = val;
@@ -245,7 +245,7 @@ fat_put (cluster_t clst, cluster_t val) {
 cluster_t
 fat_get (cluster_t clst) {
 	/* TODO: Your code goes here. */
-	if (clst < 2 || clst >= fat_fs->fat_length) {
+	if (clst < 1 || clst >= fat_fs->fat_length) {
 		PANIC("fat get : Invalid cluster number\n");
 	}
 	return fat_fs->fat[clst];
@@ -256,4 +256,10 @@ disk_sector_t
 cluster_to_sector (cluster_t clst) {
 	/* TODO: Your code goes here. */
 	return fat_fs->data_start + (clst - 2);
+}
+
+bool fat_allocate(size_t cnt, disk_sector_t *sectorp) {
+	if (cnt == 0) {
+		return true;
+	}
 }
