@@ -309,11 +309,15 @@ off_t inode_write_at(struct inode *inode, const void *buffer_, off_t size,
 	 * 확장 이후엔 while 루프에 진입해서 확장된 섹터에 write
 	 */
 	off_t cur_len = inode_length(inode);
-	if (offset + size > inode_length(inode)) // 파일 끝보다 크게 써야 한다면
+	off_t extend_size = offset + size;
+	if (extend_size > inode_length(inode)) // 파일 끝보다 크게 써야 한다면
 	{
 		off_t last_sector_use_size = inode_length(inode) % DISK_SECTOR_SIZE; // 마지막 섹터의 사용 공간
+		off_t remain_length = extend_size - inode_length(inode);			 // 확장해야할 크기 찾기
 		off_t last_sector_remain_size = DISK_SECTOR_SIZE - last_sector_use_size;
-		off_t remain_length = (size + offset) - inode_length(inode); // 확장해야할 크기 찾기
+
+		if (inode->data.start == 0) // 현재 할당받은 클러스터 아무것도 없음
+			inode->data.start = fat_create_chain(0);
 
 		inode->data.length += remain_length < last_sector_remain_size ? remain_length : last_sector_remain_size;
 		remain_length -= last_sector_remain_size;
