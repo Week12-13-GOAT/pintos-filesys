@@ -31,7 +31,12 @@ static void dump_dir(struct dir *dir)
  * 디렉터리를 생성합니다. 성공하면 true, 실패하면 false를 반환합니다. */
 bool dir_create(disk_sector_t sector, size_t entry_cnt)
 {
-	return inode_create(sector, entry_cnt * sizeof(struct dir_entry));
+	bool succ = inode_create(sector, entry_cnt * sizeof(struct dir_entry));
+	if(succ){
+		struct inode *cur_inode = inode_open(sector);
+		inode_mark_dir(cur_inode);
+	}
+	return succ;
 }
 
 /* 주어진 INODE에 대한 디렉터리를 열어 반환하며 소유권을 가져옵니다.

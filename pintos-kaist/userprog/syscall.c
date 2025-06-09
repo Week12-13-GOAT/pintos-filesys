@@ -1,6 +1,7 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include <string.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/loader.h"
@@ -34,6 +35,13 @@ void check_read_buffer(const void *buffer, unsigned size);
 int sys_wait(tid_t pid);
 int sys_dup2(int oldfd, int newfd);
 void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+
+bool sys_chdir(const char *dir_name);
+bool sys_mkdir(const char *dir_name);
+bool sys_readdir(int fd, char *name);
+bool sys_isdir(int fd);
+int sys_inumber(int fd);
+int sys_symlink(const char *target, const char *linkpath);
 
 /* 시스템 콜.
  *
@@ -135,12 +143,97 @@ void syscall_handler(struct intr_frame *f UNUSED)
 	case SYS_MUNMAP:
 		sys_munmap(arg1);
 		break;
+	case SYS_CHDIR: 
+		//char *dir 
+		f->R.rax = sys_chdir(arg1);
+		break;
+	case SYS_MKDIR: 
+		//char *dir
+		f->R.rax = sys_mkdir(arg1);
+		break;
+	case SYS_READDIR: 
+		// int fd, char name[READDIR_MAX_LEN + 1]
+		f->R.rax = sys_readdir(arg1, arg2);
+		break;
+	case SYS_ISDIR: 
+		// int fd
+		f->R.rax = sys_isdir(arg1);
+		break;
+	case SYS_INUMBER: 
+		// int fd
+		f->R.rax = sys_inumber(arg1);
+		break;
+	case SYS_SYMLINK: 
+		// char *target, char *linkpath
+		f->R.rax = sys_symlink(arg1, arg2);
+		break;
 	default:
 		thread_exit();
 		break;
 	}
 }
 
+//디렉토리 파싱 후 검색
+struct dir *dir_parse_and_find(const char *dir_name){
+	char *token;
+   	char *save_ptr;
+
+	struct dir *search_dir = dir_name[0] != '/' ? dir_reopen(thread_current()->cur_dir) : dir_open_root();
+	// if(dir_name[0] != '/')
+	// 	search_dir = dir_reopen(thread_current()->cur_dir);
+	// else
+	// 	search_dir = dir_open_root();
+
+	if(search_dir == NULL)
+		return NULL;
+
+	// 대신 파손될 복제 문자열 생성
+	char path_copy[strlen(dir_name)+1];  
+	strlcpy(path_copy, dir_name, sizeof path_copy);
+
+	struct inode *dir_inode = NULL;
+	for (token = strtok_r(path_copy,"/", &save_ptr);
+        token != NULL;
+        token = strtok_r(NULL,"/", &save_ptr))
+   	{
+		//현재일 때 예외처리
+		if (!strcmp(token, "."))
+			continue;
+
+    	if(!dir_lookup(search_dir,token,&dir_inode) || !inode_is_dir(dir_inode)){
+			dir_close(search_dir);
+			return NULL;
+		}
+		
+
+		dir_close(search_dir);
+		search_dir = dir_open(dir_inode);
+		if(search_dir == NULL)
+			return NULL;
+		
+   	}
+	
+	return search_dir;
+}
+
+//현재 디렉토리를 변경경
+bool sys_chdir(const char *dir_name){
+	struct thread *cur = thread_current();
+	struct dir *new_dir = dir_parse_and_find(dir_name);
+	if(new_dir == NULL)
+		return false;
+
+	if (cur->cur_dir != NULL)
+		dir_close(cur->cur_dir);
+	cur->cur_dir = new_dir;
+	return true;
+}
+
+bool sys_mkdir(const char *dir_name){
+	char name_copy[strlen(dir_name)+1];
+	strlcpy(name_copy, dir_name, sizeof name_copy);
+
+}
 // 주소값이 유저 영역(0x8048000~0xc0000000)에서 사용하는 주소값인지 확인하는 함수
 void check_address(const uint64_t *addr)
 {

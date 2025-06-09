@@ -432,3 +432,11 @@ void inode_flush(struct inode *inode)
 {
 	disk_write(filesys_disk, inode->sector, &inode->data);
 }
+
+void inode_mark_dir(struct inode *inode) {
+	ASSERT(inode != NULL);
+	inode->data.isdir = true;
+
+	// 디스크에 반영하려면 직접 write 필요
+	disk_write(filesys_disk, inode->sector, &inode->data);
+}

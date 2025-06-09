@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/fixed-point.h"
 #include "threads/synch.h"
+#include "filesys/directory.h"
 
 #ifdef VM
 #include "vm/vm.h"
@@ -141,6 +142,10 @@ struct thread
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
+#endif
+#ifdef FILESYS
+	/* Table for whole virtual memory owned by thread. */
+	struct dir *cur_dir;
 #endif
 
 	/* Owned by thread.c. */
