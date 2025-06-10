@@ -19,5 +19,6 @@ bool filesys_remove(const char *name);
 void create_root_dir_inode(void);
 void dump_root_dir(void);
 int parse_path(char *, char *[]);
+bool is_root_path(const char *path);
 
 #endif /* filesys/filesys.h */

@@ -14,7 +14,11 @@
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include "lib/user/syscall.h"
-#include "vm/vm.h"
+#include "filesys/directory.h"
+#include "filesys/fat.h"
+#include "filesys/inode.h" #include "vm/vm.h"
+
+#define MAX_PATH 128
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -141,8 +145,10 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		sys_munmap(arg1);
 		break;
 	case SYS_CHDIR:
+		f->R.rax = sys_chdir(arg1);
 		break;
 	case SYS_MKDIR:
+		f->R.rax = sys_mkdir(arg1);
 		break;
 	case SYS_READDIR:
 		break;
@@ -378,6 +384,7 @@ void sys_exit(int status)
 
 bool sys_create(const char *file, unsigned initial_size)
 {
+
 	lock_acquire(&filesys_lock);
 	check_address(file);
 	if (file == NULL || strcmp(file, "") == 0)
@@ -610,4 +617,74 @@ int sys_dup2(int oldfd, int newfd)
 	cur->fd_table[newfd] = cur->fd_table[oldfd];
 
 	return newfd;
+}
+
+bool sys_mkdir(const char *dir)
+{
+	bool is_root = is_root_path(dir);
+	char *path_lst[MAX_PATH];
+	int path_cnt = parse_path(dir, path_lst);
+	if (path_cnt == 0)
+		return false;
+	struct thread *cur = thread_current();
+	struct dir *cur_dir = is_root ? dir_open_root() : cur->cwd;
+
+	for (int i = 0; i < path_cnt - 1; i++)
+	{
+		struct inode *inode = NULL;					   // 더미 inode
+		if (!dir_lookup(cur_dir, path_lst[i], &inode)) // 현재 폴더에서 찾기
+			return false;
+		if (!is_dir(inode))
+			return false;
+		dir_close(cur_dir);
+		cur_dir = dir_open(inode);
+	}
+
+	disk_sector_t sector = cluster_to_sector(fat_create_chain(0));
+	if (!dir_create(sector, 16))
+		return false;
+
+	struct dir *new_dir = dir_open(inode_open(sector));
+	/* 현재 디렉토리에 새 디렉토리 추가 */
+	dprintf("dir add before\n");
+	if (!dir_add(cur_dir, path_lst[path_cnt - 1], sector))
+		return false;
+	dprintf("dir add after\n");
+
+	/* 새 디렉토리에 . 추가 */
+	if (!dir_add(new_dir, ".", sector))
+		return false;
+	/* 새 디렉토리에 .. 추가 */
+	if (!dir_add(new_dir, "..", get_dir_sector(cur_dir)))
+		return false;
+
+	return true;
+}
+
+bool sys_chdir(const char *dir)
+{
+	bool is_root = is_root_path(dir);
+	char *path_lst[MAX_PATH];
+	int path_cnt = parse_path(dir, path_lst);
+	if (path_cnt == 0)
+		return false;
+
+	struct thread *cur = thread_current();
+	struct dir *cur_dir = is_root ? dir_open_root() : cur->cwd;
+
+	for (int i = 0; i < path_cnt; i++)
+	{
+		struct inode *inode = NULL;					   // 더미 inode
+		if (!dir_lookup(cur_dir, path_lst[i], &inode)) // 현재 폴더에서 찾기
+			return false;
+		if (!is_dir(inode))
+			return false;
+		dir_close(cur_dir);
+		cur_dir = dir_open(inode);
+	}
+
+	dir_close(cur->cwd);
+	cur->cwd = cur_dir;
+
+	return true;
 }

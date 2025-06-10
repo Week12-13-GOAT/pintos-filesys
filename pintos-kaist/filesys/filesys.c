@@ -8,6 +8,7 @@
 #include "filesys/directory.h"
 #include "filesys/fat.h"
 #include "devices/disk.h"
+#include "include/threads/thread.h"
 
 /* 파일 시스템을 담고 있는 디스크. */
 struct disk *filesys_disk;
@@ -59,8 +60,28 @@ bool filesys_create(const char *name, off_t initial_size)
 {
 	cluster_t inode_clst = 0;
 	disk_sector_t inode_sector = 0;
-	struct dir *dir = dir_open_root();
-	bool success = (dir != NULL && name != NULL && strlen(name) <= 14 && fat_allocate(1, &inode_clst) && inode_create(cluster_to_sector(inode_clst), initial_size) && dir_add(dir, name, cluster_to_sector(inode_clst)));
+
+	bool is_root = is_root_path(name);
+	char *path_lst[128];
+	int path_cnt = parse_path(name, path_lst);
+	if (path_cnt == 0)
+		return false;
+	struct thread *cur = thread_current();
+	struct dir *cur_dir = is_root ? dir_open_root() : cur->cwd;
+
+	for (int i = 0; i < path_cnt - 1; i++)
+	{
+		struct inode *inode = NULL;					   // 더미 inode
+		if (!dir_lookup(cur_dir, path_lst[i], &inode)) // 현재 폴더에서 찾기
+			return false;
+		if (!is_dir(inode))
+			return false;
+		dir_close(cur_dir);
+		cur_dir = dir_open(inode);
+	}
+	name = path_lst[path_cnt - 1];
+
+	bool success = (cur_dir != NULL && name != NULL && strlen(name) <= 14 && fat_allocate(1, &inode_clst) && inode_create(cluster_to_sector(inode_clst), initial_size, false) && dir_add(cur_dir, name, cluster_to_sector(inode_clst)));
 	if (!success && inode_sector != 0)
 		dprintf("[%s] fail to filesys_create !!\n", name);
 
@@ -166,4 +187,9 @@ int parse_path(char *target, char *argv[])
 	argv[argc] = NULL; // 마지막에 NULL로 끝맺기(C 관례)
 
 	return argc;
+}
+
+bool is_root_path(const char *path)
+{
+	return path[0] == '/';
 }

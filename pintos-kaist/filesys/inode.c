@@ -116,7 +116,7 @@ void inode_init(void)
 /* 길이가 LENGTH 바이트인 데이터를 갖는 inode를 초기화하여
  * 파일 시스템 디스크의 SECTOR 섹터에 기록한다.
  * 성공하면 true를, 메모리나 디스크 할당이 실패하면 false를 반환한다. */
-bool inode_create(disk_sector_t sector, off_t length)
+bool inode_create(disk_sector_t sector, off_t length, bool is_dir)
 {
 	struct inode_disk *disk_inode = NULL;
 	bool success = false;
@@ -133,6 +133,7 @@ bool inode_create(disk_sector_t sector, off_t length)
 		size_t sectors = bytes_to_sectors(length);
 		disk_inode->length = length;
 		disk_inode->magic = INODE_MAGIC;
+		disk_inode->isdir = is_dir;
 		if (fat_allocate(sectors, &disk_inode->start))
 		{
 			disk_write(filesys_disk, sector, disk_inode);
@@ -436,4 +437,14 @@ off_t inode_length(const struct inode *inode)
 void inode_flush(struct inode *inode)
 {
 	disk_write(filesys_disk, inode->sector, &inode->data);
+}
+
+bool is_dir(struct inode *inode)
+{
+	return inode->data.isdir;
+}
+
+disk_sector_t get_dir_sector(struct dir *dir)
+{
+	return dir->inode->sector;
 }
