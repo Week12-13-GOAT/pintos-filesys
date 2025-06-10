@@ -8,7 +8,7 @@
 
 /* 하나의 디렉터리 엔트리. */
 
-static void dump_dir(struct dir *dir)
+void dump_dir(struct dir *dir)
 {
 #ifdef DEBUG_LOG
 	struct dir_entry e;
@@ -39,7 +39,7 @@ bool dir_create(disk_sector_t sector, size_t entry_cnt)
 struct dir *
 dir_open(struct inode *inode)
 {
-	struct dir *dir = calloc(1, sizeof *dir);
+	struct dir *dir = calloc(1, sizeof(struct dir *));
 	if (inode != NULL && dir != NULL)
 	{
 		dir->inode = inode;

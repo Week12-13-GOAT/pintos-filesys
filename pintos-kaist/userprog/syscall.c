@@ -627,7 +627,11 @@ bool sys_mkdir(const char *dir)
 	if (path_cnt == 0)
 		return false;
 	struct thread *cur = thread_current();
-	struct dir *cur_dir = is_root ? dir_open_root() : cur->cwd;
+	struct dir *cur_dir;
+	if (is_root || cur->cwd == NULL)
+		cur_dir = dir_open_root();
+	else
+		cur_dir = dir_reopen(cur->cwd);
 
 	for (int i = 0; i < path_cnt - 1; i++)
 	{
@@ -670,7 +674,11 @@ bool sys_chdir(const char *dir)
 		return false;
 
 	struct thread *cur = thread_current();
-	struct dir *cur_dir = is_root ? dir_open_root() : cur->cwd;
+	struct dir *cur_dir;
+	if (is_root || cur->cwd == NULL)
+		cur_dir = dir_open_root();
+	else
+		cur_dir = dir_reopen(cur->cwd);
 
 	for (int i = 0; i < path_cnt; i++)
 	{
@@ -685,6 +693,7 @@ bool sys_chdir(const char *dir)
 
 	dir_close(cur->cwd);
 	cur->cwd = cur_dir;
+	dump_dir(cur->cwd);
 
 	return true;
 }

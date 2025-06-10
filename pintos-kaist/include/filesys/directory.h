@@ -27,6 +27,7 @@ bool dir_lookup(const struct dir *, const char *name, struct inode **);
 bool dir_add(struct dir *, const char *name, disk_sector_t);
 bool dir_remove(struct dir *, const char *name);
 bool dir_readdir(struct dir *, char name[NAME_MAX + 1]);
+void dump_dir(struct dir *dir);
 
 /* 디렉터리 구조체. */
 struct dir

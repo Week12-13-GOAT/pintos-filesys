@@ -67,7 +67,11 @@ bool filesys_create(const char *name, off_t initial_size)
 	if (path_cnt == 0)
 		return false;
 	struct thread *cur = thread_current();
-	struct dir *cur_dir = is_root ? dir_open_root() : cur->cwd;
+	struct dir *cur_dir;
+	if (is_root || cur->cwd == NULL)
+		cur_dir = dir_open_root();
+	else
+		cur_dir = dir_reopen(cur->cwd);
 
 	for (int i = 0; i < path_cnt - 1; i++)
 	{
@@ -95,13 +99,37 @@ name인 파일이 존재하지 않는 경우에, 또는 내부 메모리 할당�
 struct file *
 filesys_open(const char *name)
 {
-	struct dir *dir = dir_open_root();
 	struct inode *inode = NULL;
 	bool exist = 0;
 
-	if (dir != NULL)
-		exist = dir_lookup(dir, name, &inode);
-	dir_close(dir);
+	bool is_root = is_root_path(name);
+	char *path_lst[128];
+	int path_cnt = parse_path(name, path_lst);
+	if (path_cnt == 0)
+		return false;
+
+	struct thread *cur = thread_current();
+	struct dir *cur_dir;
+	if (is_root || cur->cwd == NULL)
+		cur_dir = dir_open_root();
+	else
+		cur_dir = dir_reopen(cur->cwd);
+
+	for (int i = 0; i < path_cnt - 1; i++)
+	{
+		struct inode *inode = NULL;					   // 더미 inode
+		if (!dir_lookup(cur_dir, path_lst[i], &inode)) // 현재 폴더에서 찾기
+			return false;
+		if (!is_dir(inode))
+			return false;
+		dir_close(cur_dir);
+		cur_dir = dir_open(inode);
+	}
+	name = path_lst[path_cnt - 1];
+
+	if (cur_dir != NULL)
+		exist = dir_lookup(cur_dir, name, &inode);
+	dir_close(cur_dir);
 
 	if (!exist)
 	{
