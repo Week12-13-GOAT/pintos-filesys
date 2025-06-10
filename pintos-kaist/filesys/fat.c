@@ -304,3 +304,13 @@ bool fat_allocate(size_t cnt, cluster_t *clusterp)
 
 	return start != 0;
 }
+
+void fat_release(cluster_t clst)
+{
+	fat_remove_chain(clst, 0);
+}
+
+cluster_t sector_to_cluster(disk_sector_t sector)
+{
+	return (sector - fat_fs->data_start) + 1;
+}

@@ -15,9 +15,9 @@
  * 크기는 정확히 DISK_SECTOR_SIZE 바이트여야 한다. */
 struct inode_disk
 {
-	disk_sector_t start; /* 첫 데이터 섹터. */
-	off_t length;		 /* 파일 크기(바이트). */
-	unsigned magic;		 /* 매직 넘버. */
+	cluster_t start; /* 첫 데이터 섹터. */
+	off_t length;	 /* 파일 크기(바이트). */
+	unsigned magic;	 /* 매직 넘버. */
 	bool isdir;
 	// uint32_t unused[125];               /* 사용하지 않음. */
 	char unused[496];
@@ -221,9 +221,14 @@ void inode_close(struct inode *inode)
 		/* 삭제된 경우 블록을 반환한다. */
 		if (inode->removed)
 		{
+#ifdef EFILESYS
+			fat_release(inode->data.start);
+			fat_release(sector_to_cluster(inode->sector));
+#else
 			free_map_release(inode->sector, 1);
 			free_map_release(inode->data.start,
 							 bytes_to_sectors(inode->data.length));
+#endif
 		}
 
 		free(inode);

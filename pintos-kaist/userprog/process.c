@@ -228,6 +228,9 @@ __do_fork(void *aux)
    current->stdin_count = parent->stdin_count;
    current->stdout_count = parent->stdout_count;
 
+   /* project4 filesys */
+   current->cwd = dir_reopen(parent->cwd);
+
    if_.R.rax = 0;
 
    /* 마침내 새로 생성된 프로세스로 전환합니다. */
@@ -300,6 +303,8 @@ int process_exec(void *f_name)
    thread_current()->running_file = new_file;
    /* ==========여기까지 !!========== */
    file_deny_write(thread_current()->running_file);
+
+   thread_current()->cwd = dir_open_root();
 
    // hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
    /* 프로세스를 전환합니다. */
@@ -395,6 +400,9 @@ void process_exit(void)
       file_allow_write(curr->running_file);
       file_close(curr->running_file);
    }
+
+   /* project 4 - filesys */
+   dir_close(curr->cwd);
 
    process_cleanup();
    sema_up(&curr->wait_sema);

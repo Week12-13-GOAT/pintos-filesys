@@ -18,5 +18,6 @@ struct file *filesys_open(const char *name);
 bool filesys_remove(const char *name);
 void create_root_dir_inode(void);
 void dump_root_dir(void);
+int parse_path(char *, char *[]);
 
 #endif /* filesys/filesys.h */

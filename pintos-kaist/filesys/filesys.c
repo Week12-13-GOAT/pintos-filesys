@@ -150,3 +150,20 @@ void dump_root_dir(void)
 	dir_close(dir);
 #endif
 }
+
+int parse_path(char *target, char *argv[])
+{
+	int argc = 0;
+	char *token;
+	char *save_ptr; // 파싱 상태를 저장할 변수!
+
+	for (token = strtok_r(target, "/", &save_ptr);
+		 token != NULL;
+		 token = strtok_r(NULL, "/", &save_ptr))
+	{
+		argv[argc++] = token; // 각 인자의 포인터 저장
+	}
+	argv[argc] = NULL; // 마지막에 NULL로 끝맺기(C 관례)
+
+	return argc;
+}

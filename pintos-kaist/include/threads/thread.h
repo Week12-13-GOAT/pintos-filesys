@@ -133,6 +133,9 @@ struct thread
 	/* project3 mmap */
 	struct list mmap_list;
 
+	/* project4 filesys */
+	struct dir *cwd;
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4; /* Page map level 4 */

@@ -34,6 +34,11 @@ void check_read_buffer(const void *buffer, unsigned size);
 int sys_wait(tid_t pid);
 int sys_dup2(int oldfd, int newfd);
 void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+bool sys_chdir(const char *dir);
+bool sys_mkdir(const char *dir);
+bool sys_readdir(int fd, char *name);
+bool sys_isdir(int fd);
+int sys_inumber(int fd);
 
 /* 시스템 콜.
  *
@@ -134,6 +139,16 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		break;
 	case SYS_MUNMAP:
 		sys_munmap(arg1);
+		break;
+	case SYS_CHDIR:
+		break;
+	case SYS_MKDIR:
+		break;
+	case SYS_READDIR:
+		break;
+	case SYS_ISDIR:
+		break;
+	case SYS_INUMBER:
 		break;
 	default:
 		thread_exit();
