@@ -46,6 +46,7 @@ static void process_init(void)
    current->fd_table[1] = STDOUT;
    current->stdin_count = 1;
    current->stdout_count = 1;
+   current->cwd = dir_open_root();
    ASSERT(current->fd_table != NULL);
    sema_init(&current->fork_sema, 0);
 }
@@ -305,8 +306,6 @@ int process_exec(void *f_name)
    /* ==========여기까지 !!========== */
    file_deny_write(thread_current()->running_file);
 
-   thread_current()->cwd = dir_open_root();
-
    // hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
    /* 프로세스를 전환합니다. */
    do_iret(&_if);
@@ -535,7 +534,7 @@ load(const char *file_name, struct intr_frame *if_)
 
    /* 실행 파일을 엽니다. */
    lock_acquire(&filesys_lock);
-   file = filesys_open(file_name);
+   file = load_file_open(file_name);
    lock_release(&filesys_lock);
    if (file == NULL)
    {

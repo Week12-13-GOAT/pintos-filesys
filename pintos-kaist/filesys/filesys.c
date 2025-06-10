@@ -92,12 +92,8 @@ bool filesys_create(const char *name, off_t initial_size)
 	return success;
 }
 
-/* 주어진 이름을 가진 파일을 연다.
-파일을 여는데 성공하면 새로운 파일을 반환하고, 실패하면 널포인터를 반환.
-name인 파일이 존재하지 않는 경우에, 또는 내부 메모리 할당에 실패할 경우 실패한다.
-*/
 struct file *
-filesys_open(const char *name)
+load_file_open(const char *name)
 {
 	struct dir *dir = thread_current()->cwd;
 	if (!dir || !is_good_inode(dir->inode))
@@ -110,6 +106,51 @@ filesys_open(const char *name)
 
 	if (dir != NULL)
 		exist = dir_lookup(dir, name, &inode);
+	// dir_close(dir);
+
+	if (!exist)
+	{
+		return NULL;
+	}
+
+	return file_open(inode);
+}
+
+/* 주어진 이름을 가진 파일을 연다.
+파일을 여는데 성공하면 새로운 파일을 반환하고, 실패하면 널포인터를 반환.
+name인 파일이 존재하지 않는 경우에, 또는 내부 메모리 할당에 실패할 경우 실패한다.
+*/
+struct file *
+filesys_open(const char *name)
+{
+	bool is_root = is_root_path(name);
+	char *path_lst[128];
+	int path_cnt = parse_path(name, path_lst);
+	if (path_cnt == 0)
+		return false;
+
+	struct thread *cur = thread_current();
+	struct dir *cur_dir;
+	if (is_root || cur->cwd == NULL || is_good_inode(cur->cwd->inode))
+		cur_dir = dir_open_root();
+	else
+		cur_dir = dir_reopen(cur->cwd);
+
+	for (int i = 0; i < path_cnt - 1; i++)
+	{
+		struct inode *inode = NULL;					   // 더미 inode
+		if (!dir_lookup(cur_dir, path_lst[i], &inode)) // 현재 폴더에서 찾기
+			return false;
+		if (!is_dir(inode))
+			return false;
+		dir_close(cur_dir);
+		cur_dir = dir_open(inode);
+	}
+	struct inode *inode = NULL;
+	bool exist = 0;
+
+	if (cur_dir != NULL)
+		exist = dir_lookup(cur_dir, path_lst[path_cnt - 1], &inode);
 	// dir_close(dir);
 
 	if (!exist)

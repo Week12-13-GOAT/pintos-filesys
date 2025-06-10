@@ -20,5 +20,7 @@ void create_root_dir_inode(void);
 void dump_root_dir(void);
 int parse_path(char *, char *[]);
 bool is_root_path(const char *path);
+struct file *
+load_file_open(const char *name);
 
 #endif /* filesys/filesys.h */
