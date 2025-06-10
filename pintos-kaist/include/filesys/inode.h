@@ -23,5 +23,6 @@ off_t inode_length(const struct inode *);
 void inode_flush(struct inode *);
 bool is_dir(struct inode *);
 disk_sector_t get_dir_sector(struct dir *);
+bool is_good_inode(struct inode *);
 
 #endif /* filesys/inode.h */

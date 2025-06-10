@@ -19,6 +19,7 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 #include "intrinsic.h"
+#include "filesys/inode.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -402,7 +403,8 @@ void process_exit(void)
    }
 
    /* project 4 - filesys */
-   dir_close(curr->cwd);
+   if (curr->cwd && is_good_inode(curr->cwd->inode))
+      dir_close(curr->cwd);
 
    process_cleanup();
    sema_up(&curr->wait_sema);

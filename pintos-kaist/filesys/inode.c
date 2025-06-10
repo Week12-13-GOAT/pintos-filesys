@@ -213,6 +213,9 @@ void inode_close(struct inode *inode)
 	if (inode == NULL)
 		return;
 
+	if (inode->data.magic != INODE_MAGIC)
+		return;
+
 	/* 마지막으로 열려 있다면 자원을 해제한다. */
 	if (--inode->open_cnt == 0)
 	{
@@ -447,4 +450,9 @@ bool is_dir(struct inode *inode)
 disk_sector_t get_dir_sector(struct dir *dir)
 {
 	return dir->inode->sector;
+}
+
+bool is_good_inode(struct inode *inode)
+{
+	return inode->data.magic == INODE_MAGIC;
 }
