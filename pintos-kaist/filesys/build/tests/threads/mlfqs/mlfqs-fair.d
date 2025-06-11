@@ -11,5 +11,6 @@ tests/threads/mlfqs/mlfqs-fair.o: ../../tests/threads/mlfqs/mlfqs-fair.c \
  ../../include/lib/kernel/hash.h ../../include/lib/kernel/list.h \
  ../../include/vm/uninit.h ../../include/vm/anon.h \
  ../../include/vm/file.h ../../include/filesys/file.h \
- ../../include/filesys/off_t.h ../../include/filesys/page_cache.h \
- ../../include/devices/timer.h ../../include/lib/round.h
+ ../../include/filesys/off_t.h ../../include/devices/disk.h \
+ ../../include/filesys/page_cache.h ../../include/devices/timer.h \
+ ../../include/lib/round.h

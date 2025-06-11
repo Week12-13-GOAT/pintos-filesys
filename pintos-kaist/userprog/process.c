@@ -19,6 +19,7 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 #include "intrinsic.h"
+#include "filesys/inode.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -45,6 +46,7 @@ static void process_init(void)
    current->fd_table[1] = STDOUT;
    current->stdin_count = 1;
    current->stdout_count = 1;
+   current->cwd = dir_open_root();
    ASSERT(current->fd_table != NULL);
    sema_init(&current->fork_sema, 0);
 }
@@ -228,6 +230,9 @@ __do_fork(void *aux)
    current->stdin_count = parent->stdin_count;
    current->stdout_count = parent->stdout_count;
 
+   /* project4 filesys */
+   current->cwd = dir_reopen(parent->cwd);
+
    if_.R.rax = 0;
 
    /* 마침내 새로 생성된 프로세스로 전환합니다. */
@@ -269,6 +274,14 @@ int process_exec(void *f_name)
    _if.ds = _if.es = _if.ss = SEL_UDSEG;
    _if.cs = SEL_UCSEG;
    _if.eflags = FLAG_IF | FLAG_MBS;
+
+   /* Close previously running executable, if any. */
+   if (thread_current()->running_file != NULL)
+   {
+      file_allow_write(thread_current()->running_file);
+      file_close(thread_current()->running_file);
+      thread_current()->running_file = NULL;
+   }
 
    lock_acquire(&filesys_lock);
    struct file *new_file = filesys_open(first_word);
@@ -387,6 +400,10 @@ void process_exit(void)
       file_allow_write(curr->running_file);
       file_close(curr->running_file);
    }
+
+   /* project 4 - filesys */
+   if (curr->cwd && is_good_inode(curr->cwd->inode))
+      dir_close(curr->cwd);
 
    process_cleanup();
    sema_up(&curr->wait_sema);
@@ -517,7 +534,7 @@ load(const char *file_name, struct intr_frame *if_)
 
    /* 실행 파일을 엽니다. */
    lock_acquire(&filesys_lock);
-   file = filesys_open(file_name);
+   file = load_file_open(file_name);
    lock_release(&filesys_lock);
    if (file == NULL)
    {

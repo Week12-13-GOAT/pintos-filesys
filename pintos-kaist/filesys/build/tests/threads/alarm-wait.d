@@ -11,5 +11,6 @@ tests/threads/alarm-wait.o: ../../tests/threads/alarm-wait.c \
  ../../include/lib/kernel/list.h ../../include/vm/uninit.h \
  ../../include/vm/anon.h ../../include/vm/file.h \
  ../../include/filesys/file.h ../../include/filesys/off_t.h \
+ ../../include/devices/disk.h ../../include/lib/inttypes.h \
  ../../include/filesys/page_cache.h ../../include/devices/timer.h \
  ../../include/lib/round.h

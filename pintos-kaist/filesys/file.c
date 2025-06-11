@@ -1,6 +1,7 @@
 #include "filesys/file.h"
 #include <debug.h>
 #include "filesys/inode.h"
+#include "include/devices/disk.h"
 #include "threads/malloc.h"
 
 /* 열린 파일을 나타내는 구조체. */
@@ -179,4 +180,19 @@ off_t file_tell(struct file *file)
 {
 	ASSERT(file != NULL);
 	return file->pos;
+}
+
+int is_file_dir(struct file *file)
+{
+	return is_dir(file->inode);
+}
+
+disk_sector_t get_file_inode_num(struct file *file)
+{
+	return get_inode_sector(file->inode);
+}
+
+struct dir *file_to_dir(struct file *file)
+{
+	return dir_open(file->inode);
 }

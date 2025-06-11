@@ -14,7 +14,12 @@
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include "lib/user/syscall.h"
+#include "filesys/directory.h"
+#include "filesys/fat.h"
+#include "filesys/inode.h"
 #include "vm/vm.h"
+
+#define MAX_PATH 128
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -34,6 +39,11 @@ void check_read_buffer(const void *buffer, unsigned size);
 int sys_wait(tid_t pid);
 int sys_dup2(int oldfd, int newfd);
 void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+bool sys_chdir(const char *dir);
+bool sys_mkdir(const char *dir);
+bool sys_readdir(int fd, char *name);
+bool sys_isdir(int fd);
+int sys_inumber(int fd);
 
 /* 시스템 콜.
  *
@@ -134,6 +144,21 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		break;
 	case SYS_MUNMAP:
 		sys_munmap(arg1);
+		break;
+	case SYS_CHDIR:
+		f->R.rax = sys_chdir(arg1);
+		break;
+	case SYS_MKDIR:
+		f->R.rax = sys_mkdir(arg1);
+		break;
+	case SYS_READDIR:
+		f->R.rax = sys_readdir(arg1, arg2);
+		break;
+	case SYS_ISDIR:
+		f->R.rax = sys_isdir(arg1);
+		break;
+	case SYS_INUMBER:
+		f->R.rax = sys_inumber(arg1);
 		break;
 	default:
 		thread_exit();
@@ -347,6 +372,11 @@ static int sys_write(int fd, const void *buffer, unsigned size)
 		return -1;
 
 	lock_acquire(&filesys_lock);
+	if (is_file_dir(f))
+	{
+		lock_release(&filesys_lock);
+		sys_exit(-1);
+	}
 	int bytes_written = file_write(f, buffer, size);
 	lock_release(&filesys_lock);
 	return bytes_written;
@@ -363,6 +393,7 @@ void sys_exit(int status)
 
 bool sys_create(const char *file, unsigned initial_size)
 {
+
 	lock_acquire(&filesys_lock);
 	check_address(file);
 	if (file == NULL || strcmp(file, "") == 0)
@@ -473,10 +504,18 @@ int sys_open(const char *file)
 	}
 	lock_acquire(&filesys_lock);
 	struct file *file_obj = filesys_open(file);
+
 	if (file_obj == NULL)
 	{
 		lock_release(&filesys_lock);
 		return -1;
+	}
+
+	if (is_file_dir(file_obj))
+	{
+		struct dir *dir = file_to_dir(file_obj);
+		free(file_obj);
+		file_obj = dir;
 	}
 
 	int fd = find_unused_fd(file_obj);
@@ -503,11 +542,6 @@ void sys_seek(int fd, unsigned position)
 	{
 		return;
 	}
-
-	/* 파일 끝을 넘어가는 포인터 이동 방어 */
-	off_t length = file_length(file_obj);
-	if (position > length)
-		position = length;
 
 	/* 파일의 현재 읽기/쓰기 위치를 position으로 이동 */
 	file_seek(file_obj, position);
@@ -600,4 +634,137 @@ int sys_dup2(int oldfd, int newfd)
 	cur->fd_table[newfd] = cur->fd_table[oldfd];
 
 	return newfd;
+}
+
+bool sys_mkdir(const char *dir)
+{
+	bool is_root = is_root_path(dir);
+	char *path_lst[MAX_PATH];
+	int path_cnt = parse_path(dir, path_lst);
+	if (path_cnt == 0)
+		return false;
+	struct thread *cur = thread_current();
+	struct dir *cur_dir;
+	if (is_root || cur->cwd == NULL)
+		cur_dir = dir_open_root();
+	else
+		cur_dir = dir_reopen(cur->cwd);
+
+	for (int i = 0; i < path_cnt - 1; i++)
+	{
+		struct inode *inode = NULL;					   // 더미 inode
+		if (!dir_lookup(cur_dir, path_lst[i], &inode)) // 현재 폴더에서 찾기
+			goto fail;
+		if (!is_dir(inode))
+			goto fail;
+		dir_close(cur_dir);
+		cur_dir = dir_open(inode);
+	}
+
+	disk_sector_t sector = cluster_to_sector(fat_create_chain(0));
+	if (!dir_create(sector, 16))
+		goto fail;
+
+	struct dir *new_dir = dir_open(inode_open(sector));
+	/* 현재 디렉토리에 새 디렉토리 추가 */
+	dprintf("dir add before\n");
+	if (!dir_add(cur_dir, path_lst[path_cnt - 1], sector))
+		goto fail;
+
+	dprintf("dir add after\n");
+
+	/* 새 디렉토리에 . 추가 */
+	if (!dir_add(new_dir, ".", sector))
+		goto fail;
+	/* 새 디렉토리에 .. 추가 */
+	if (!dir_add(new_dir, "..", get_dir_sector(cur_dir)))
+		goto fail;
+
+	dir_close(new_dir);
+	dir_close(cur_dir);
+
+	return true;
+fail:
+	if (new_dir)
+		dir_close(new_dir);
+	if (cur_dir)
+		dir_close(cur_dir);
+	return false;
+}
+
+bool sys_chdir(const char *dir)
+{
+	bool is_root = is_root_path(dir);
+	char *path_lst[MAX_PATH];
+	int path_cnt = parse_path(dir, path_lst);
+	struct thread *cur = thread_current();
+	if (is_root && path_cnt == 0)
+	{
+		if (cur->cwd)
+			dir_close(cur->cwd);
+		cur->cwd = dir_open_root();
+		return true;
+	}
+
+	struct dir *cur_dir;
+	if (is_root || cur->cwd == NULL)
+		cur_dir = dir_open_root();
+	else
+		cur_dir = dir_reopen(cur->cwd);
+
+	for (int i = 0; i < path_cnt; i++)
+	{
+		struct inode *inode = NULL;					   // 더미 inode
+		if (!dir_lookup(cur_dir, path_lst[i], &inode)) // 현재 폴더에서 찾기
+			return false;
+		if (!is_dir(inode))
+			return false;
+		dir_close(cur_dir);
+		cur_dir = dir_open(inode);
+	}
+
+	if (is_dir_removed(cur_dir))
+		return false;
+
+	dir_close(cur->cwd);
+	cur->cwd = cur_dir;
+	dump_dir(cur->cwd);
+
+	return true;
+}
+
+int sys_inumber(int fd)
+{
+	if (fd < 2)
+		return -1;
+	struct thread *cur = thread_current();
+	return get_file_inode_num(cur->fd_table[fd]);
+}
+
+bool sys_isdir(int fd)
+{
+	if (fd < 2)
+		return false;
+	struct thread *cur = thread_current();
+	return is_file_dir(cur->fd_table[fd]);
+}
+
+bool sys_readdir(int fd, char *name)
+{
+	if (fd < 2)
+		return false;
+	struct thread *cur = thread_current();
+	struct file *file = cur->fd_table[fd];
+	if (!is_file_dir(file))
+		return false;
+
+	struct dir *dir = file_to_dir(file);
+	while (dir_readdir(dir, name))
+	{
+		if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+			continue;
+		else
+			return true;
+	}
+	return false;
 }
