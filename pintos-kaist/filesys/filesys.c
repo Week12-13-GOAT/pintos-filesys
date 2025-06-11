@@ -124,14 +124,16 @@ struct file *
 filesys_open(const char *name)
 {
 	bool is_root = is_root_path(name);
+	char cp_name[128];
+	memcpy(cp_name, name, strlen(name) + 1);
 	char *path_lst[128];
-	int path_cnt = parse_path(name, path_lst);
+	int path_cnt = parse_path(cp_name, path_lst);
 	if (path_cnt == 0)
 		return false;
 
 	struct thread *cur = thread_current();
 	struct dir *cur_dir;
-	if (is_root || cur->cwd == NULL || is_good_inode(cur->cwd->inode))
+	if (is_root || cur->cwd == NULL || !is_good_inode(cur->cwd->inode))
 		cur_dir = dir_open_root();
 	else
 		cur_dir = dir_reopen(cur->cwd);
@@ -145,6 +147,7 @@ filesys_open(const char *name)
 			return false;
 		dir_close(cur_dir);
 		cur_dir = dir_open(inode);
+		dump_dir(cur_dir);
 	}
 	struct inode *inode = NULL;
 	bool exist = 0;

@@ -16,7 +16,8 @@
 #include "lib/user/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/fat.h"
-#include "filesys/inode.h" #include "vm/vm.h"
+#include "filesys/inode.h"
+#include "vm/vm.h"
 
 #define MAX_PATH 128
 
@@ -368,6 +369,11 @@ static int sys_write(int fd, const void *buffer, unsigned size)
 		return -1;
 
 	lock_acquire(&filesys_lock);
+	if (is_file_dir(f))
+	{
+		lock_release(&filesys_lock);
+		sys_exit(-1);
+	}
 	int bytes_written = file_write(f, buffer, size);
 	lock_release(&filesys_lock);
 	return bytes_written;

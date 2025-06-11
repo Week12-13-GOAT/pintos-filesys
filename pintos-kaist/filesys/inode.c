@@ -456,3 +456,13 @@ bool is_good_inode(struct inode *inode)
 {
 	return inode->data.magic == INODE_MAGIC;
 }
+
+bool is_root_dir(struct dir *dir)
+{
+	return get_dir_sector(dir) == ROOT_DIR_SECTOR;
+}
+
+bool is_same_dir(struct dir *dir1, struct dir *dir2)
+{
+	return get_dir_sector(dir1) == get_dir_sector(dir2);
+}

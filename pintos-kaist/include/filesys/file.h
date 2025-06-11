@@ -32,4 +32,7 @@ void increase_dup_count(struct file *);
 void decrease_dup_count(struct file *);
 int check_dup_count(struct file *);
 
+/* project 4 */
+int is_file_dir(struct file *file);
+
 #endif /* filesys/file.h */

@@ -180,3 +180,8 @@ off_t file_tell(struct file *file)
 	ASSERT(file != NULL);
 	return file->pos;
 }
+
+int is_file_dir(struct file *file)
+{
+	return is_dir(file->inode);
+}
