@@ -26,5 +26,7 @@ disk_sector_t get_dir_sector(struct dir *);
 bool is_good_inode(struct inode *);
 bool is_root_dir(struct dir *);
 bool is_same_dir(struct dir *dir1, struct dir *dir2);
+disk_sector_t get_inode_sector(struct inode *inode);
+bool is_dir_removed(struct dir *dir);
 
 #endif /* filesys/inode.h */

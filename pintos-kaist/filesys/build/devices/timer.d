@@ -11,4 +11,4 @@ devices/timer.o: ../../devices/timer.c ../../include/devices/timer.h \
  ../../include/lib/kernel/list.h ../../include/vm/uninit.h \
  ../../include/vm/anon.h ../../include/vm/file.h \
  ../../include/filesys/file.h ../../include/filesys/off_t.h \
- ../../include/filesys/page_cache.h
+ ../../include/devices/disk.h ../../include/filesys/page_cache.h

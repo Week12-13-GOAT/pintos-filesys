@@ -19,7 +19,6 @@ struct inode_disk
 	off_t length;	 /* 파일 크기(바이트). */
 	unsigned magic;	 /* 매직 넘버. */
 	bool isdir;
-	// uint32_t unused[125];               /* 사용하지 않음. */
 	char unused[496];
 };
 
@@ -465,4 +464,14 @@ bool is_root_dir(struct dir *dir)
 bool is_same_dir(struct dir *dir1, struct dir *dir2)
 {
 	return get_dir_sector(dir1) == get_dir_sector(dir2);
+}
+
+disk_sector_t get_inode_sector(struct inode *inode)
+{
+	return inode->sector;
+}
+
+bool is_dir_removed(struct dir *dir)
+{
+	return dir->inode->removed;
 }

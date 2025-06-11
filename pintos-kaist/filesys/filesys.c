@@ -128,8 +128,8 @@ filesys_open(const char *name)
 	memcpy(cp_name, name, strlen(name) + 1);
 	char *path_lst[128];
 	int path_cnt = parse_path(cp_name, path_lst);
-	if (path_cnt == 0)
-		return false;
+	if (is_root && path_cnt == 0)
+		return dir_open_root();
 
 	struct thread *cur = thread_current();
 	struct dir *cur_dir;
@@ -169,9 +169,47 @@ filesys_open(const char *name)
  * NAME 파일이 존재하지 않거나 내부 메모리 할당에 실패하면 실패합니다. */
 bool filesys_remove(const char *name)
 {
-	struct dir *dir = dir_open_root();
-	bool success = dir != NULL && dir_remove(dir, name);
-	dir_close(dir);
+	bool is_root = is_root_path(name);
+	char *path_lst[128];
+	int path_cnt = parse_path(name, path_lst);
+	if (path_cnt == 0)
+		return false;
+	struct thread *cur = thread_current();
+	struct dir *cur_dir;
+	if (is_root || cur->cwd == NULL)
+		cur_dir = dir_open_root();
+	else
+		cur_dir = dir_reopen(cur->cwd);
+
+	for (int i = 0; i < path_cnt - 1; i++)
+	{
+		struct inode *inode = NULL;					   // 더미 inode
+		if (!dir_lookup(cur_dir, path_lst[i], &inode)) // 현재 폴더에서 찾기
+			return false;
+		if (!is_dir(inode))
+			return false;
+		dir_close(cur_dir);
+		cur_dir = dir_open(inode);
+	}
+
+	struct inode *find = NULL;
+	char *remove_name = path_lst[path_cnt - 1];
+	if (!dir_lookup(cur_dir, remove_name, &find))
+		return false;
+	struct dir *find_dir = dir_open(find);
+	if (is_same_dir(find_dir, cur->cwd))
+	{
+		dir_close(find_dir);
+		dir_close(cur_dir);
+		return false;
+	}
+
+	dir_close(find_dir);
+	bool success = cur_dir != NULL && dir_remove(cur_dir, remove_name);
+	dir_close(cur_dir);
+
+	if (is_good_inode(find) && is_dir(find))
+		return false;
 
 	return success;
 }

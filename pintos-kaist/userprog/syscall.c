@@ -152,10 +152,13 @@ void syscall_handler(struct intr_frame *f UNUSED)
 		f->R.rax = sys_mkdir(arg1);
 		break;
 	case SYS_READDIR:
+		f->R.rax = sys_readdir(arg1, arg2);
 		break;
 	case SYS_ISDIR:
+		f->R.rax = sys_isdir(arg1);
 		break;
 	case SYS_INUMBER:
+		f->R.rax = sys_inumber(arg1);
 		break;
 	default:
 		thread_exit();
@@ -501,10 +504,18 @@ int sys_open(const char *file)
 	}
 	lock_acquire(&filesys_lock);
 	struct file *file_obj = filesys_open(file);
+
 	if (file_obj == NULL)
 	{
 		lock_release(&filesys_lock);
 		return -1;
+	}
+
+	if (is_file_dir(file_obj))
+	{
+		struct dir *dir = file_to_dir(file_obj);
+		free(file_obj);
+		file_obj = dir;
 	}
 
 	int fd = find_unused_fd(file_obj);
@@ -643,32 +654,42 @@ bool sys_mkdir(const char *dir)
 	{
 		struct inode *inode = NULL;					   // 더미 inode
 		if (!dir_lookup(cur_dir, path_lst[i], &inode)) // 현재 폴더에서 찾기
-			return false;
+			goto fail;
 		if (!is_dir(inode))
-			return false;
+			goto fail;
 		dir_close(cur_dir);
 		cur_dir = dir_open(inode);
 	}
 
 	disk_sector_t sector = cluster_to_sector(fat_create_chain(0));
 	if (!dir_create(sector, 16))
-		return false;
+		goto fail;
 
 	struct dir *new_dir = dir_open(inode_open(sector));
 	/* 현재 디렉토리에 새 디렉토리 추가 */
 	dprintf("dir add before\n");
 	if (!dir_add(cur_dir, path_lst[path_cnt - 1], sector))
-		return false;
+		goto fail;
+
 	dprintf("dir add after\n");
 
 	/* 새 디렉토리에 . 추가 */
 	if (!dir_add(new_dir, ".", sector))
-		return false;
+		goto fail;
 	/* 새 디렉토리에 .. 추가 */
 	if (!dir_add(new_dir, "..", get_dir_sector(cur_dir)))
-		return false;
+		goto fail;
+
+	dir_close(new_dir);
+	dir_close(cur_dir);
 
 	return true;
+fail:
+	if (new_dir)
+		dir_close(new_dir);
+	if (cur_dir)
+		dir_close(cur_dir);
+	return false;
 }
 
 bool sys_chdir(const char *dir)
@@ -676,10 +697,15 @@ bool sys_chdir(const char *dir)
 	bool is_root = is_root_path(dir);
 	char *path_lst[MAX_PATH];
 	int path_cnt = parse_path(dir, path_lst);
-	if (path_cnt == 0)
-		return false;
-
 	struct thread *cur = thread_current();
+	if (is_root && path_cnt == 0)
+	{
+		if (cur->cwd)
+			dir_close(cur->cwd);
+		cur->cwd = dir_open_root();
+		return true;
+	}
+
 	struct dir *cur_dir;
 	if (is_root || cur->cwd == NULL)
 		cur_dir = dir_open_root();
@@ -697,9 +723,48 @@ bool sys_chdir(const char *dir)
 		cur_dir = dir_open(inode);
 	}
 
+	if (is_dir_removed(cur_dir))
+		return false;
+
 	dir_close(cur->cwd);
 	cur->cwd = cur_dir;
 	dump_dir(cur->cwd);
 
 	return true;
+}
+
+int sys_inumber(int fd)
+{
+	if (fd < 2)
+		return -1;
+	struct thread *cur = thread_current();
+	return get_file_inode_num(cur->fd_table[fd]);
+}
+
+bool sys_isdir(int fd)
+{
+	if (fd < 2)
+		return false;
+	struct thread *cur = thread_current();
+	return is_file_dir(cur->fd_table[fd]);
+}
+
+bool sys_readdir(int fd, char *name)
+{
+	if (fd < 2)
+		return false;
+	struct thread *cur = thread_current();
+	struct file *file = cur->fd_table[fd];
+	if (!is_file_dir(file))
+		return false;
+
+	struct dir *dir = file_to_dir(file);
+	while (dir_readdir(dir, name))
+	{
+		if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+			continue;
+		else
+			return true;
+	}
+	return false;
 }

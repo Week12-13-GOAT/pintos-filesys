@@ -2,6 +2,7 @@
 #define FILESYS_FILE_H
 
 #include "filesys/off_t.h"
+#include "include/devices/disk.h"
 
 struct inode;
 
@@ -34,5 +35,7 @@ int check_dup_count(struct file *);
 
 /* project 4 */
 int is_file_dir(struct file *file);
+disk_sector_t get_file_inode_num(struct file *file);
+struct dir *file_to_dir(struct file *file);
 
 #endif /* filesys/file.h */
